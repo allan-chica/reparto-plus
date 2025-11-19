@@ -47,7 +47,7 @@
       <div ref="alphabetRef" class="flex flex-col items-center space-y-1 select-none" @touchstart="handleTouchStart"
         @touchmove="handleTouchMove" @touchend="handleTouchEnd" @mousedown="handleMouseDown">
         <button v-for="letter in availableLetters" :key="letter" ref="letterButtons"
-          class="w-6 h-6 flex items-center justify-center text-lg font-medium rounded-full transition-all duration-150 active:scale-110"
+          class="w-6 h-6 flex items-center justify-center text-xs font-medium rounded-full transition-all duration-150 active:scale-110"
           :class="{
             'bg-primary text-primary-foreground shadow-sm': activeSection === letter,
             'hover:bg-muted hover:text-foreground': activeSection !== letter,

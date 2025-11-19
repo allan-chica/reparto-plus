@@ -1,7 +1,7 @@
 import { openDB } from "idb"
 
 const DB_NAME = 'reparto'
-const DB_VERSION = 6
+const DB_VERSION = 7
 
 export const db = await openDB(DB_NAME, DB_VERSION, {
   upgrade(db) {
@@ -24,6 +24,12 @@ export const db = await openDB(DB_NAME, DB_VERSION, {
       const store = db.createObjectStore('sales', { keyPath: 'id', autoIncrement: true })
       store.createIndex('date', 'date', { unique: false })
       store.createIndex('clientId', 'client.id', { unique: false })
+    }
+
+    // Tags
+    if (!db.objectStoreNames.contains('tags')) {
+      const store = db.createObjectStore('tags', { keyPath: 'id', autoIncrement: true })
+      store.createIndex('name', 'name', { unique: false })
     }
   }
 })

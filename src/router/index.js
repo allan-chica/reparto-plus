@@ -5,6 +5,7 @@ import ClientsView from '@/views/ClientsView.vue'
 import ClientFormView from '@/views/ClientFormView.vue'
 import FoodsView from '@/views/FoodsView.vue'
 import FoodFormView from '@/views/FoodFormView.vue'
+import TagFormView from '@/views/TagFormView.vue'
 import SalesView from '@/views/SalesView.vue'
 import SaleFormView from '@/views/SaleFormView.vue'
 import SaleDetailView from '@/views/SaleDetailView.vue'
@@ -54,6 +55,19 @@ const routes = [
         path: '/foods/edit/:id',
         component: FoodFormView,
         name: 'Editar producto',
+        props: true
+      },
+
+      // Tags
+      {
+        path: '/tags/new',
+        component: TagFormView,
+        name: 'Nueva etiqueta'
+      },
+      {
+        path: '/tags/edit/:id',
+        component: TagFormView,
+        name: 'Editar etiqueta',
         props: true
       },
 

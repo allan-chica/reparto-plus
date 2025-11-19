@@ -17,9 +17,14 @@ export const useProductsStore = defineStore('products', {
     },
 
     async updateProduct(updatedProduct) {
-      await db.put('products', updatedProduct)
-      const index = this.products.findIndex(p => p.id === updatedProduct.id)
-      if (index !== -1) this.products[index] = updatedProduct
+      // Ensure id is numeric to avoid creating a new record when using string ids
+      const id = Number(updatedProduct.id)
+      // Merge with existing product to preserve any fields not being updated
+      const existingProduct = await db.get('products', id)
+      const mergedProduct = { ...existingProduct, ...updatedProduct, id }
+      await db.put('products', mergedProduct)
+      const index = this.products.findIndex(p => p.id === id)
+      if (index !== -1) this.products[index] = mergedProduct
     },
 
     async deleteProduct(id) {

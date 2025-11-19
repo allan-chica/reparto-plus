@@ -35,8 +35,13 @@
             <button
               type="button"
               @click="toggleTag(tag)"
+              @pointerdown="startPress(tag, $event)"
+              @pointerup="endPress()"
+              @pointermove="onPointerMove($event)"
+              @pointercancel="endPress()"
+              @pointerleave="endPress()"
               :class="[
-                'inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm transition',
+                'inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm transition select-none',
                 selectedTags.some(t => t.id === tag.id)
                   ? 'bg-primary text-background' /* selected */
                   : selectedTags.length > 0
@@ -51,7 +56,7 @@
           <!-- Add tag button (last special tag) -->
           <button
             type="button"
-            @click="router.push('/tags/new')"
+            @click="tagDialogOpen = true"
             class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm border border-dashed border-stone-600 text-primary"
           >
             <Plus class="size-4" />
@@ -138,6 +143,40 @@
     </AlertDialogContent>
 
   </AlertDialog>
+
+  <!-- Create Tag Dialog -->
+  <Dialog v-model:open="tagDialogOpen">
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitleSimple>Crear etiqueta</DialogTitleSimple>
+        <div class="mt-2">
+          <Input v-model="newTagName" placeholder="Nombre de la etiqueta" />
+        </div>
+      </DialogHeader>
+
+      <DialogFooter>
+        <Button variant="ghost" @click="tagDialogOpen = false">Cancelar</Button>
+        <Button @click="createTag" class="ml-2">Crear</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <!-- Delete Tag Confirmation -->
+  <AlertDialog v-model:open="deleteTagDialogOpen">
+    <AlertDialogTrigger as-child></AlertDialogTrigger>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Eliminar etiqueta</AlertDialogTitle>
+        <AlertDialogDescription>
+          ¿Estás seguro que querés eliminar la etiqueta <b>{{ tagToDelete?.name }}</b>? Esto no se podrá recuperar.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+        <AlertDialogAction @click="confirmDeleteTag">Eliminar</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>
 
 <script setup>
@@ -155,6 +194,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle as DialogTitleSimple,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Pencil, Trash2, Search, Plus } from 'lucide-vue-next'
@@ -208,6 +254,12 @@ const tags = computed(() => {
 
 const openDialog = ref(false)
 const productToDelete = ref(null)
+
+// Tag dialog state
+const tagDialogOpen = ref(false)
+const newTagName = ref('')
+const deleteTagDialogOpen = ref(false)
+const tagToDelete = ref(null)
 
 const filteredProducts = computed(() => {
   const query = searchQuery.value.toLowerCase().trim()
@@ -263,14 +315,84 @@ const formatPrice = price => {
   return new Intl.NumberFormat('es-AR').format(price)
 }
 
-const toggleTag = tag => {
+function origToggleTag(tag) {
   const i = selectedTags.value.findIndex(t => t.id === tag.id)
   if (i === -1) selectedTags.value.push(tag)
   else selectedTags.value.splice(i, 1)
 }
 
+// Long-press handling (use pointer events so scrolling isn't blocked)
+const longPressed = ref(false)
+let pressTimer = null
+let startX = 0
+let startY = 0
+const MOVE_THRESHOLD = 8 // pixels
+
+const startPress = (tag, ev) => {
+  // Reset
+  if (pressTimer) clearTimeout(pressTimer)
+  longPressed.value = false
+  startX = ev.clientX || 0
+  startY = ev.clientY || 0
+  // Start timer (do NOT call preventDefault) so native scrolling still works
+  pressTimer = setTimeout(() => {
+    longPressed.value = true
+    // open custom delete confirmation dialog
+    tagToDelete.value = tag
+    deleteTagDialogOpen.value = true
+  }, 700)
+}
+
+const endPress = () => {
+  if (pressTimer) {
+    clearTimeout(pressTimer)
+    pressTimer = null
+  }
+  // small delay to avoid immediate click after long-press
+  if (longPressed.value) {
+    setTimeout(() => { longPressed.value = false }, 50)
+  }
+}
+
+const onPointerMove = (ev) => {
+  if (!pressTimer) return
+  const dx = Math.abs((ev.clientX || 0) - startX)
+  const dy = Math.abs((ev.clientY || 0) - startY)
+  if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
+    clearTimeout(pressTimer)
+    pressTimer = null
+  }
+}
+
+// Update toggle to respect long-press (ignore click after long-press)
+const toggleTag = (tag) => {
+  if (longPressed.value) return
+  origToggleTag(tag)
+}
+
 const selectAllTags = () => {
   selectedTags.value = []
+}
+
+const createTag = async () => {
+  const name = String(newTagName.value ?? '').trim()
+  if (!name) return
+  await tagsStore.addTag({ name })
+  newTagName.value = ''
+  tagDialogOpen.value = false
+}
+
+const confirmDeleteTag = async () => {
+  if (!tagToDelete.value) return
+  try {
+    await tagsStore.deleteTag(tagToDelete.value.id)
+    const idx = selectedTags.value.findIndex(t => t.id === tagToDelete.value.id)
+    if (idx !== -1) selectedTags.value.splice(idx, 1)
+  } catch (e) {
+    console.error('confirmDeleteTag', e)
+  }
+  tagToDelete.value = null
+  deleteTagDialogOpen.value = false
 }
 
 // Mounted

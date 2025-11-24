@@ -7,6 +7,13 @@
     </div>
 
     <div class="relative mb-4 items-center">
+      <Input v-model="searchQuery" placeholder="Buscar..." class="pl-9" id="search" />
+      <span class="absolute start-0 inset-y-0 flex items-center justify-center px-2">
+        <Search class="size-5 text-muted-foreground" />
+      </span>
+    </div>
+
+    <div class="relative mb-4 items-center">
       <!-- Tags horizontal scroll -->
       <div class="overflow-x-auto w-full" style="scrollbar-width: none;">
         <div class="flex gap-2 items-center py-2 px-1 whitespace-nowrap">
@@ -19,7 +26,18 @@
           </button>
 
           <template v-for="tag in tags" :key="tag.id">
-            <button type="button" @click="toggleTag(tag)" :class="['inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm transition select-none', selectedTags.some(t => t.id === tag.id) ? 'bg-primary text-background' : 'bg-secondary/10 text-foreground']">{{ tag.name }}</button>
+            <button
+              type="button"
+              @click="toggleTag(tag)"
+              @pointerdown="startPress(tag, $event)"
+              @pointerup="endPress()"
+              @pointermove="onPointerMove($event)"
+              @pointercancel="endPress()"
+              @pointerleave="endPress()"
+              :class="['inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm transition select-none', selectedTags.some(t => t.id === tag.id) ? 'bg-primary text-background' : 'bg-secondary/10 text-foreground']"
+            >
+              {{ tag.name }}
+            </button>
           </template>
 
           <button type="button" @click="tagDialogOpen = true" class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm border border-dashed border-stone-600 text-primary">
@@ -28,13 +46,6 @@
           </button>
         </div>
       </div>
-    </div>
-
-    <div class="relative mb-4 items-center">
-      <Input v-model="searchQuery" placeholder="Buscar..." class="pl-9" id="search" />
-      <span class="absolute start-0 inset-y-0 flex items-center justify-center px-2">
-        <Search class="size-5 text-muted-foreground" />
-      </span>
     </div>
 
     <div class="flex-1 min-h-0">
@@ -106,6 +117,23 @@
 
   </AlertDialog>
 
+  <!-- Delete Tag Confirmation -->
+  <AlertDialog v-model:open="deleteTagDialogOpen">
+    <AlertDialogTrigger as-child></AlertDialogTrigger>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Eliminar etiqueta</AlertDialogTitle>
+        <AlertDialogDescription>
+          ¿Estás seguro que querés eliminar la etiqueta <b>{{ tagToDelete?.name }}</b>? Esto no se podrá recuperar.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+        <AlertDialogAction @click="confirmDeleteTag">Eliminar</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+
   <!-- Create Tag Dialog -->
   <Dialog v-model:open="tagDialogOpen">
     <DialogContent>
@@ -160,6 +188,15 @@ const tags = computed(() => (tagsStore.tags || []).slice().sort((a,b)=> (a.name|
 const selectedTags = ref([])
 const tagDialogOpen = ref(false)
 const newTagName = ref('')
+const deleteTagDialogOpen = ref(false)
+const tagToDelete = ref(null)
+
+// Long-press handling for tags (use pointer events so scrolling isn't blocked)
+const longPressed = ref(false)
+let pressTimer = null
+let startX = 0
+let startY = 0
+const MOVE_THRESHOLD = 8 // pixels
 
 // Map for tag lookups
 const tagsById = computed(() => {
@@ -176,7 +213,8 @@ const tagName = (id) => {
 }
 
 const selectAllTags = () => { selectedTags.value = [] }
-const toggleTag = (tag) => {
+
+const origToggleTag = (tag) => {
   const i = selectedTags.value.findIndex(t => t.id === tag.id)
   if (i === -1) selectedTags.value.push(tag)
   else selectedTags.value.splice(i, 1)
@@ -216,6 +254,65 @@ const dialogDelete = client => {
 
 const deleteClient = id => {
   store.deleteClient(id)
+}
+
+const startPress = (tag, ev) => {
+  if (pressTimer) clearTimeout(pressTimer)
+  longPressed.value = false
+  startX = ev.clientX || 0
+  startY = ev.clientY || 0
+  pressTimer = setTimeout(() => {
+    longPressed.value = true
+    tagToDelete.value = tag
+    deleteTagDialogOpen.value = true
+  }, 700)
+}
+
+const endPress = () => {
+  if (pressTimer) {
+    clearTimeout(pressTimer)
+    pressTimer = null
+  }
+  if (longPressed.value) {
+    setTimeout(() => { longPressed.value = false }, 50)
+  }
+}
+
+const onPointerMove = (ev) => {
+  if (!pressTimer) return
+  const dx = Math.abs((ev.clientX || 0) - startX)
+  const dy = Math.abs((ev.clientY || 0) - startY)
+  if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
+    clearTimeout(pressTimer)
+    pressTimer = null
+  }
+}
+
+const toggleTag = (tag) => {
+  if (longPressed.value) return
+  origToggleTag(tag)
+}
+
+const confirmDeleteTag = async () => {
+  if (!tagToDelete.value) return
+  const deleted = { ...tagToDelete.value }
+  const tagId = deleted.id
+  const affectedClients = store.clients.filter(c => c && (c.tagId === tagId || String(c.tagId) === String(tagId))).map(c => ({ ...c }))
+
+  try {
+    await tagsStore.deleteTag(tagId)
+    for (const c of affectedClients) {
+      const updated = { ...c }
+      if (String(updated.tagId) === String(tagId)) updated.tagId = null
+      await store.updateClient(updated)
+    }
+    const idx = selectedTags.value.findIndex(t => t.id === tagId)
+    if (idx !== -1) selectedTags.value.splice(idx, 1)
+  } catch (e) {
+    console.error('confirmDeleteTag', e)
+  }
+  tagToDelete.value = null
+  deleteTagDialogOpen.value = false
 }
 
 // Mounted

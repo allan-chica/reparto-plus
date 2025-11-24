@@ -17,6 +17,17 @@
         <Label for="phone">Telefono</Label>
         <Input id="phone" v-model="form.phone" type="number" />
       </div>
+          <div class="flex flex-col gap-2">
+            <Label>Etiqueta</Label>
+            <div class="overflow-x-auto w-full" style="scrollbar-width: none;">
+              <div class="flex gap-2 items-center py-2 px-1 whitespace-nowrap">
+                <button type="button" @click="form.tagId = null" :class="['inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm transition', !form.tagId ? 'bg-primary text-background' : 'bg-secondary/10 text-foreground']">Sin etiqueta</button>
+                <template v-for="tag in tags" :key="tag.id">
+                  <button type="button" @click="selectTag(tag)" :class="['inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm transition select-none', form.tagId === tag.id ? 'bg-primary text-background' : 'bg-secondary/10 text-foreground']">{{ tag.name }}</button>
+                </template>
+              </div>
+            </div>
+          </div>
       <div class="flex gap-3 items-center">
         <Switch class="my-3" id="has-discount" v-model:model-value="hasDiscount" />
         <Label for="has-discount">Tiene descuento</Label>
@@ -32,6 +43,7 @@
 
 <script setup>
 import { useClientsStore } from '@/stores/clients'
+import { useTagsStore } from '@/stores/tags'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -39,8 +51,15 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ChevronLeft, Percent } from 'lucide-vue-next'
 import { Switch } from '@/components/ui/switch'
+// import { Plus } from 'lucide-vue-next'
 
 const store = useClientsStore()
+const tagsStore = useTagsStore()
+const tags = computed(() => (tagsStore.tags || []).slice().sort((a,b)=> (a.name||'').localeCompare(b.name||'')))
+
+const selectTag = (tag) => {
+  form.value.tagId = tag.id
+}
 const router = useRouter()
 const route = useRoute()
 
@@ -82,6 +101,7 @@ onMounted(async () => {
       }
     }
   }
+  tagsStore.loadTags()
 })
 
 </script>

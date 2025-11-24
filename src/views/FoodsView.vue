@@ -182,6 +182,7 @@
 <script setup>
 import { onMounted, computed, ref } from 'vue'
 import { useProductsStore } from '@/stores/products'
+import { useClientsStore } from '@/stores/clients'
 import { useTagsStore } from '@/stores/tags'
 import {
   AlertDialog,
@@ -222,6 +223,7 @@ const tagName = (id) => {
 }
 
 const store = useProductsStore()
+const clientsStore = useClientsStore()
 const router = useRouter()
 const searchQuery = ref('')
 
@@ -384,13 +386,45 @@ const createTag = async () => {
 
 const confirmDeleteTag = async () => {
   if (!tagToDelete.value) return
+  const deleted = { ...tagToDelete.value }
+  const tagId = deleted.id
+
+  // collect affected products and clients
+  const affectedProducts = store.products.filter(p => p && p.pricesByTags && Object.prototype.hasOwnProperty.call(p.pricesByTags, String(tagId))).map(p => ({ ...p }))
+  const affectedClients = clientsStore.clients.filter(c => c && (c.tagId === tagId || String(c.tagId) === String(tagId))).map(c => ({ ...c }))
+
   try {
-    await tagsStore.deleteTag(tagToDelete.value.id)
-    const idx = selectedTags.value.findIndex(t => t.id === tagToDelete.value.id)
+    // delete tag record
+    await tagsStore.deleteTag(tagId)
+
+    // remove tag references from products
+    for (const p of affectedProducts) {
+      if (p.pricesByTags && Object.prototype.hasOwnProperty.call(p.pricesByTags, String(tagId))) {
+        const updated = { ...p }
+        // delete the key
+        const key = String(tagId)
+        const copyPrices = { ...(updated.pricesByTags || {}) }
+        delete copyPrices[key]
+        updated.pricesByTags = copyPrices
+        await store.updateProduct(updated)
+      }
+    }
+
+    // remove tag association from clients
+    for (const c of affectedClients) {
+      const updated = { ...c }
+      if (String(updated.tagId) === String(tagId)) updated.tagId = null
+      await clientsStore.updateClient(updated)
+    }
+
+    // remove from selectedTags if present
+    const idx = selectedTags.value.findIndex(t => t.id === tagId)
     if (idx !== -1) selectedTags.value.splice(idx, 1)
+
   } catch (e) {
     console.error('confirmDeleteTag', e)
   }
+
   tagToDelete.value = null
   deleteTagDialogOpen.value = false
 }

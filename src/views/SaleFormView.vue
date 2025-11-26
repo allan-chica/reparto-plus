@@ -62,21 +62,44 @@
           letter-header-class="bg-background/95 backdrop-blur-sm py-2 px-3">
           <template #item="{ item }">
             <div class="p-3 flex justify-between items-center border mb-3" :class="{
-              'border-transparent': !getProductQuantity(item.id),
-              'bg-stone-100 dark:bg-stone-900/50 border-muted rounded-md': getProductQuantity(item.id)
-            }">
+                    'border-transparent': !getProductQuantity(item),
+                    'bg-stone-100 dark:bg-stone-900/50 border-muted rounded-md': getProductQuantity(item)
+                  }">
               <div class="flex flex-col text-lg">
-                <p class="font-semibold">{{ item.name }}</p>
-                <p class="text-green-600 dark:text-green-500">${{ formatPrice(item.price) }}</p>
+                <div class="flex items-baseline gap-3">
+                  <p class="font-semibold text-base">{{ item.name }}</p>
+                  <template v-if="selectedClient">
+                    <template v-if="resolvePriceForClient(item, selectedClient).type === 'client'">
+                      <span class="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30">Cliente</span>
+                    </template>
+                    <template v-else-if="resolvePriceForClient(item, selectedClient).type === 'tag'">
+                      <span class="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30">Etiqueta</span>
+                    </template>
+                  </template>
+                </div>
+
+                <!-- Prices: show special (if any) and base price -->
+                <div class="flex items-center gap-3 mt-1">
+                  <template v-if="selectedClient">
+                    <div>
+                      <p class="text-lg md:text-xl text-green-600 dark:text-green-500 font-bold leading-none">
+                        ${{ formatPrice(resolvePriceForClient(item, selectedClient).price) }}
+                      </p>
+                      <p v-if="resolvePriceForClient(item, selectedClient).type !== 'base'" class="text-sm md:text-base text-stone-500 line-through mt-0.5">${{ formatPrice(item.basePrice ?? item.price) }}</p>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <p class="text-lg md:text-xl text-green-600 dark:text-green-500 font-bold">${{ formatPrice(item.basePrice ?? item.price) }}</p>
+                  </template>
+                </div>
               </div>
               <div class="flex items-center space-x-2 mt-2">
-                <Button size="icon" variant="outline" :disabled="!getProductQuantity(item.id)"
+                <Button size="icon" variant="outline" :disabled="!getProductQuantity(item)"
                   @click="removeProduct(item)">
                   <Minus />
                 </Button>
                 <span class="text-sm border-b p-2"
-                  :class="{ 'border-green-600 dark:border-green-500': getProductQuantity(item.id) }">{{
-                    getProductQuantity(item.id) }}</span>
+                  :class="{ 'border-green-600 dark:border-green-500': getProductQuantity(item) }">{{ getProductQuantity(item) }}</span>
                 <Button size="icon" variant="outline" @click="addProduct(item)">
                   <Plus />
                 </Button>
@@ -307,32 +330,89 @@ const selectClient = client => {
   clientDialogOpen.value = false
 }
 
+// Resolve price for a product given a client
+const resolvePriceForClient = (product, client) => {
+  const base = Number(product.basePrice ?? product.price ?? 0)
+  if (!client) return { price: base, type: 'base' }
+  const clientId = client.id
+  const tagId = client.tagId
+
+  // Special client price wins
+  if (product.specialClientPrices && Object.prototype.hasOwnProperty.call(product.specialClientPrices, String(clientId))) {
+    return { price: Number(product.specialClientPrices[String(clientId)]), type: 'client' }
+  }
+
+  // Then per-tag price
+  if (tagId !== undefined && tagId !== null && product.pricesByTags && Object.prototype.hasOwnProperty.call(product.pricesByTags, String(tagId))) {
+    return { price: Number(product.pricesByTags[String(tagId)]), type: 'tag' }
+  }
+
+  return { price: base, type: 'base' }
+}
+
 const addProduct = (product) => {
-  const existingProduct = selectedProducts.value.find(p => p.id === product.id)
+  // product can be either a store product (no quantity) or a selectedProducts entry (has quantity)
+  if (product && Object.prototype.hasOwnProperty.call(product, 'quantity')) {
+    // selected line -> increase by reference
+    const idx = selectedProducts.value.findIndex(p => p.id === product.id && Number(p.price) === Number(product.price))
+    if (idx !== -1) selectedProducts.value[idx].quantity++
+    return
+  }
+
+  const client = selectedClient.value
+  const resolved = resolvePriceForClient(product, client)
+  const price = resolved.price
+
+  // Group by product id + price so different-priced lines are separate
+  const existingProduct = selectedProducts.value.find(p => p.id === product.id && Number(p.price) === Number(price))
   if (existingProduct) {
     existingProduct.quantity++
   } else {
     selectedProducts.value.push({
-      ...product,
+      id: product.id,
+      name: product.name,
+      price,
       quantity: 1
     })
   }
 }
 
 const removeProduct = (product) => {
-  const existingProduct = selectedProducts.value.find(p => p.id === product.id)
-  if (existingProduct) {
-    if (existingProduct.quantity > 1) {
-      existingProduct.quantity--
-    } else {
-      selectedProducts.value = selectedProducts.value.filter(p => p.id !== product.id)
+  // product can be selectedProducts entry or store product
+  if (product && Object.prototype.hasOwnProperty.call(product, 'quantity')) {
+    // selected line -> decrease or remove
+    const idx = selectedProducts.value.findIndex(p => p.id === product.id && Number(p.price) === Number(product.price))
+    if (idx !== -1) {
+      if (selectedProducts.value[idx].quantity > 1) selectedProducts.value[idx].quantity--
+      else selectedProducts.value.splice(idx, 1)
     }
+    return
+  }
+
+  const client = selectedClient.value
+  const resolved = resolvePriceForClient(product, client)
+  const price = resolved.price
+
+  // find matching line (id + price)
+  const existingIndex = selectedProducts.value.findIndex(p => p.id === product.id && Number(p.price) === Number(price))
+  if (existingIndex !== -1) {
+    const existingProduct = selectedProducts.value[existingIndex]
+    if (existingProduct.quantity > 1) existingProduct.quantity--
+    else selectedProducts.value.splice(existingIndex, 1)
   }
 }
 
-const getProductQuantity = (productId) => {
-  const product = selectedProducts.value.find(p => p.id === productId)
-  return product ? product.quantity : 0
+const getProductQuantity = (product) => {
+  // Sum quantities for product id and price that applies for current selected client
+  if (!product) return 0
+  const client = selectedClient.value
+  const resolved = resolvePriceForClient(product, client)
+  const price = resolved.price
+
+  return selectedProducts.value.reduce((sum, p) => {
+    if (p.id === product.id && Number(p.price) === Number(price)) return sum + (p.quantity || 0)
+    return sum
+  }, 0)
 }
 
 const formatPrice = price => {

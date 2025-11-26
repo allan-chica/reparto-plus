@@ -62,6 +62,19 @@
             class="p-3 flex justify-between items-center border-b rounded-md">
             <div class="flex flex-col">
               <p class="font-semibold text-lg">{{ product.name }}</p>
+              <div class="flex items-center gap-2 mt-1">
+                <p class="text-muted-foreground">{{ product.quantity }}x ${{ formatPrice(product.price) }}</p>
+                <template v-if="saleLinePriceInfo(product).type === 'client'">
+                  <span class="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30">Cliente</span>
+                </template>
+                <template v-else-if="saleLinePriceInfo(product).type === 'tag'">
+                  <span class="text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30">Etiqueta</span>
+                </template>
+                <template v-else-if="saleLinePriceInfo(product).type === 'special'">
+                  <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30">Especial</span>
+                </template>
+              </div>
+              <p class="text-sm text-stone-500 mt-1">Precio base: ${{ formatPrice(saleLinePriceInfo(product).base ?? product.price) }}</p>
             </div>
             <div>
               <p class="text-muted-foreground">{{ product.quantity }}x ${{ formatPrice(product.price) }}</p>
@@ -200,6 +213,7 @@ import { ChevronLeft, Pencil, Trash2, Printer, ChevronRight } from 'lucide-vue-n
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSalesStore } from '@/stores/sales'
+import { useProductsStore } from '@/stores/products'
 import StatusIcon from '@/components/StatusIcon.vue'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import TabsContent from '@/components/ui/tabs/TabsContent.vue'
@@ -219,6 +233,46 @@ const saleStore = useSalesStore()
 
 const saleId = computed(() => route.params.id)
 const sale = ref({})
+const productStore = useProductsStore()
+
+// helper: map current products by id
+const productsById = computed(() => {
+  const m = new Map()
+  for (const p of (productStore.products || [])) {
+    if (p && p.id !== undefined) m.set(String(p.id), p)
+  }
+  return m
+})
+
+const getProductRecord = (productId) => {
+  return productsById.value.get(String(productId)) || null
+}
+
+// Determine price source for a sale line using current product record and sale.client
+const saleLinePriceInfo = (line) => {
+  // line: { id, name, price, quantity }
+  const rec = getProductRecord(line.id)
+  const client = sale.value.client
+  const base = rec ? Number(rec.basePrice ?? rec.price ?? 0) : undefined
+
+  // If we can inspect current product, try to infer where price came from
+  if (client && rec) {
+    const clientId = client.id
+    const tagId = client.tagId
+    if (rec.specialClientPrices && Object.prototype.hasOwnProperty.call(rec.specialClientPrices, String(clientId))) {
+      const cp = Number(rec.specialClientPrices[String(clientId)])
+      if (Number(line.price) === cp) return { type: 'client', base }
+    }
+    if (tagId !== undefined && tagId !== null && rec.pricesByTags && Object.prototype.hasOwnProperty.call(rec.pricesByTags, String(tagId))) {
+      const tp = Number(rec.pricesByTags[String(tagId)])
+      if (Number(line.price) === tp) return { type: 'tag', base }
+    }
+  }
+
+  // fallback: if we know base and it differs, show base
+  if (base !== undefined && Number(line.price) !== Number(base)) return { type: 'special', base }
+  return { type: 'base', base }
+}
 const isReceiptOpen = ref(false)
 
 const viewPaymentDialog = ref(false)
@@ -312,6 +366,9 @@ const formatPrice = price => {
 }
 
 onMounted(async () => {
+  // ensure local products cache is populated so we can show base prices and tag/client mappings
+  await productStore.loadProducts()
+
   const dbSale = await saleStore.getSaleById(Number(saleId.value))
 
   if (dbSale) {

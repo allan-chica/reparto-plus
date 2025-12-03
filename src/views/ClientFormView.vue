@@ -25,6 +25,11 @@
                 <template v-for="tag in tags" :key="tag.id">
                   <button type="button" @click="selectTag(tag)" :class="['inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm transition select-none', form.tagId === tag.id ? 'bg-primary text-background' : 'bg-secondary/10 text-foreground']">{{ tag.name }}</button>
                 </template>
+                <!-- Add tag button -->
+                <button type="button" @click="tagDialogOpen = true" class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm border border-dashed border-stone-600 text-primary">
+                  <Plus class="size-4" />
+                  Agregar
+                </button>
               </div>
             </div>
           </div>
@@ -38,6 +43,22 @@
       </div>
       <Button type="submit">{{ isEditing ? 'Editar' : 'Crear' }} Cliente</Button>
     </form>
+    <!-- Create Tag Dialog -->
+    <Dialog v-model:open="tagDialogOpen">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitleSimple>Crear etiqueta</DialogTitleSimple>
+          <div class="mt-2">
+            <Input v-model="newTagName" placeholder="Nombre de la etiqueta" />
+          </div>
+        </DialogHeader>
+
+        <DialogFooter>
+          <Button variant="ghost" @click="tagDialogOpen = false">Cancelar</Button>
+          <Button @click="createTag" class="ml-2">Crear</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
@@ -47,16 +68,34 @@ import { useTagsStore } from '@/stores/tags'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle as DialogTitleSimple,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ChevronLeft } from 'lucide-vue-next'
+import { ChevronLeft, Plus } from 'lucide-vue-next'
 // import { Percent } from 'lucide-vue-next'
 // import { Switch } from '@/components/ui/switch'
-// import { Plus } from 'lucide-vue-next'
 
 const store = useClientsStore()
 const tagsStore = useTagsStore()
 const tags = computed(() => (tagsStore.tags || []).slice().sort((a,b)=> (a.name||'').localeCompare(b.name||'')))
+
+// Tag creation dialog state
+const tagDialogOpen = ref(false)
+const newTagName = ref('')
+
+const createTag = async () => {
+  const name = String(newTagName.value ?? '').trim()
+  if (!name) return
+  await tagsStore.addTag({ name })
+  newTagName.value = ''
+  tagDialogOpen.value = false
+}
 
 const selectTag = (tag) => {
   form.value.tagId = tag.id

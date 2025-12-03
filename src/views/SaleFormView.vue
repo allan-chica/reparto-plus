@@ -10,11 +10,19 @@
         <h1 class="text-2xl font-bold">{{ isEditing ? 'Editar' : 'Nueva' }} venta</h1>
       </div>
       <Dialog v-model:open="clientDialogOpen">
-        <DialogTrigger as-child>
+          <DialogTrigger as-child>
           <div
-            class="flex justify-between items-center gap-2 mb-4 cursor-pointer w-full border rounded-lg p-4 font-semibold"
+            class="flex justify-between items-center gap-2 mb-4 cursor-pointer w-full border rounded-lg p-3 font-semibold"
             :class="{ 'text-red-400 border-dashed': !selectedClient }">
-            <span>{{ selectedClient ? selectedClient.name : 'Seleccionar cliente' }}</span>
+            <div class="flex items-center gap-3">
+              <div class="flex flex-col text-left">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-semibold leading-none">{{ selectedClient ? selectedClient.name : 'Seleccionar cliente' }}</span>
+                  <span v-if="selectedClient && selectedClient.discount > 0" class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30">-{{ selectedClient.discount }}%</span>
+                </div>
+                <span v-if="selectedClient && clientTagName(selectedClient)" class="text-xs text-muted-foreground mt-0.5">{{ clientTagName(selectedClient) }}</span>
+              </div>
+            </div>
             <ChevronRight />
           </div>
         </DialogTrigger>
@@ -36,8 +44,14 @@
           <div class="flex-1 min-h-0">
             <AlphabetScroll :items="filteredClients" label-key="name" id-key="id" :scrollAreaClass="'h-full max-h-96'">
               <template #item="{ item }">
-                <div class="p-3 rounded-md cursor-pointer hover:bg-muted" @click="selectClient(item)">
-                  <p class="font-semibold">{{ item.name }}</p>
+                <div class="p-3 rounded-md cursor-pointer hover:bg-muted flex items-center justify-between" @click="selectClient(item)">
+                  <div class="flex items-center gap-3">
+                    <div>
+                      <p class="font-semibold">{{ item.name }}</p>
+                      <p v-if="clientTagName(item)" class="text-xs text-muted-foreground">{{ clientTagName(item) }}</p>
+                    </div>
+                  </div>
+                  <div class="text-muted-foreground text-sm">Seleccionar</div>
                 </div>
               </template>
               <template #empty>
@@ -93,16 +107,16 @@
                   </template>
                 </div>
               </div>
-              <div class="flex items-center space-x-2 mt-2">
-                <Button size="icon" variant="outline" :disabled="!getProductQuantity(item)"
-                  @click="removeProduct(item)">
-                  <Minus />
-                </Button>
-                <span class="text-sm border-b p-2"
-                  :class="{ 'border-green-600 dark:border-green-500': getProductQuantity(item) }">{{ getProductQuantity(item) }}</span>
-                <Button size="icon" variant="outline" @click="addProduct(item)">
-                  <Plus />
-                </Button>
+              <div class="flex items-center mt-2">
+                <div class="inline-flex items-center rounded-full border overflow-hidden">
+                  <Button size="icon" variant="ghost" class="px-3 py-2" :disabled="!getProductQuantity(item)" @click="removeProduct(item)">
+                    <Minus />
+                  </Button>
+                  <div class="px-4 py-2 text-sm font-semibold text-center border-l border-r" :class="{ 'text-green-700 dark:text-green-400': getProductQuantity(item) }">{{ getProductQuantity(item) }}</div>
+                  <Button size="icon" variant="ghost" class="px-3 py-2" @click="addProduct(item)">
+                    <Plus />
+                  </Button>
+                </div>
               </div>
             </div>
           </template>
@@ -114,6 +128,7 @@
           </template>
         </AlphabetScroll>
       </div>
+
       <Transition enter-active-class="transition-all duration-300 ease-out overflow-hidden"
         enter-from-class="max-h-0 opacity-0" enter-to-class="max-h-[100px] opacity-100"
         leave-active-class="transition-all duration-300 ease-in overflow-hidden"
@@ -155,12 +170,24 @@
             <div v-for="product in sortedSelectedProducts" :key="product.id"
               class="p-3 flex justify-between items-center border-b rounded-md">
               <!-- Product info -->
-              <div class="flex flex-col">
-                <p class="font-semibold text-lg">{{ product.name }}</p>
+                <div class="flex flex-col">
+                <div class="flex items-center gap-3">
+                  <p class="font-semibold text-lg">{{ product.name }}</p>
+                  <template v-if="getSelectedLineInfo(product).type === 'client'">
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30">Cliente</span>
+                  </template>
+                  <template v-else-if="getSelectedLineInfo(product).type === 'tag'">
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30">Etiqueta</span>
+                  </template>
+                  <template v-else-if="getSelectedLineInfo(product).type === 'special'">
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30">Especial</span>
+                  </template>
+                </div>
                 <p class="text-muted-foreground">1x ${{ formatPrice(product.price) }}</p>
                 <p class="text-green-600 dark:text-green-500 font-semibold">
                   ${{ formatPrice(product.price * product.quantity) }}
                 </p>
+                <p class="text-sm text-stone-500 mt-1">Precio base: ${{ formatPrice(getSelectedLineInfo(product).base ?? product.price) }}</p>
               </div>
 
               <!-- Quantity controls -->
@@ -255,6 +282,7 @@ import ScrollArea from '@/components/ui/scroll-area/ScrollArea.vue'
 import AlphabetScroll from '@/components/AlphabetScroll.vue'
 import ReceiptDialog from '@/components/ReceiptDialog.vue'
 import { useClientsStore } from '@/stores/clients'
+import { useTagsStore } from '@/stores/tags'
 import { useProductsStore } from '@/stores/products'
 import { useSalesStore } from '@/stores/sales'
 
@@ -264,6 +292,20 @@ const productStore = useProductsStore()
 const saleStore = useSalesStore()
 
 const clients = computed(() => clientStore.clients)
+const tagsStore = useTagsStore()
+
+const tagsById = computed(() => {
+  const map = new Map()
+  for (const t of (tagsStore.tags || [])) {
+    if (t && t.id !== undefined) map.set(String(t.id), t.name)
+  }
+  return map
+})
+
+const clientTagName = (client) => {
+  if (!client || client.tagId === undefined || client.tagId === null) return ''
+  return tagsById.value.get(String(client.tagId)) || ''
+}
 const clientSearchQuery = ref('')
 const selectedClient = ref(null)
 const filteredClients = computed(() => {
@@ -307,6 +349,38 @@ const sortedSelectedProducts = computed(() => {
 const isReceiptOpen = ref(false)
 const lastSale = ref({})
 const saleId = ref(null)
+
+// quick lookup for products in store
+const productsById = computed(() => {
+  const m = new Map()
+  for (const p of (productStore.products || [])) {
+    if (p && p.id !== undefined) m.set(String(p.id), p)
+  }
+  return m
+})
+
+const getStoreProduct = (id) => productsById.value.get(String(id)) || null
+
+const getSelectedLineInfo = (line) => {
+  // line has id, name, price, quantity
+  const rec = getStoreProduct(line.id)
+  const base = rec ? Number(rec.basePrice ?? rec.price ?? 0) : undefined
+  const client = selectedClient.value
+  if (client && rec) {
+    const clientId = client.id
+    const tagId = client.tagId
+    if (rec.specialClientPrices && Object.prototype.hasOwnProperty.call(rec.specialClientPrices, String(clientId))) {
+      const cp = Number(rec.specialClientPrices[String(clientId)])
+      if (Number(line.price) === cp) return { type: 'client', base }
+    }
+    if (tagId !== undefined && tagId !== null && rec.pricesByTags && Object.prototype.hasOwnProperty.call(rec.pricesByTags, String(tagId))) {
+      const tp = Number(rec.pricesByTags[String(tagId)])
+      if (Number(line.price) === tp) return { type: 'tag', base }
+    }
+  }
+  if (base !== undefined && Number(line.price) !== Number(base)) return { type: 'special', base }
+  return { type: 'base', base }
+}
 
 const totalPrice = computed(() => {
   return selectedProducts.value.reduce((total, product) => {
@@ -476,6 +550,7 @@ watch(viewSummary, newVal => {
 onMounted(() => {
   clientStore.loadClients()
   productStore.loadProducts()
+  tagsStore.loadTags()
 
   window.addEventListener('popstate', handlePopState)
 })

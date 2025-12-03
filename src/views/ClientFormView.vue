@@ -29,12 +29,12 @@
             </div>
           </div>
       <div class="flex gap-3 items-center">
-        <Switch class="my-3" id="has-discount" v-model:model-value="hasDiscount" />
+        <!-- <Switch class="my-3" id="has-discount" v-model:model-value="hasDiscount" />
         <Label for="has-discount">Tiene descuento</Label>
         <div class="flex gap-1 items-center ml-3" v-if="hasDiscount">
           <Input id="discount" v-model="form.discount" type="number" class="w-20" />
           <Percent />
-        </div>
+        </div> -->
       </div>
       <Button type="submit">{{ isEditing ? 'Editar' : 'Crear' }} Cliente</Button>
     </form>
@@ -49,8 +49,9 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ChevronLeft, Percent } from 'lucide-vue-next'
-import { Switch } from '@/components/ui/switch'
+import { ChevronLeft } from 'lucide-vue-next'
+// import { Percent } from 'lucide-vue-next'
+// import { Switch } from '@/components/ui/switch'
 // import { Plus } from 'lucide-vue-next'
 
 const store = useClientsStore()

@@ -2,8 +2,8 @@
   <div class="p-6 max-w-xl mx-auto flex flex-col h-full">
 
     <!-- Actions -->
-    <div class="flex justify-between items-center">
-      <div class="flex gap-4 items-center mb-4">
+    <div class="flex justify-between items-center mb-4">
+      <div class="flex gap-4 items-center">
         <Button type="submit" size="icon" variant="outline" @click="router.push('/sales')">
           <ChevronLeft />
         </Button>
@@ -68,7 +68,7 @@
                   <span class="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30">Cliente</span>
                 </template>
                 <template v-else-if="saleLinePriceInfo(product).type === 'tag'">
-                  <span class="text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30">Etiqueta</span>
+                  <span class="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30">Etiqueta</span>
                 </template>
                 <template v-else-if="saleLinePriceInfo(product).type === 'special'">
                   <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30">Especial</span>

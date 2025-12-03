@@ -65,13 +65,13 @@
               <div class="flex items-center gap-2 mt-1">
                 <p class="text-muted-foreground">{{ product.quantity }}x ${{ formatPrice(product.price) }}</p>
                 <template v-if="saleLinePriceInfo(product).type === 'client'">
-                  <span class="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30">Cliente</span>
+                  <span class="text-xs px-2 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700/50 font-medium text-purple-700 dark:text-purple-300">Cliente</span>
                 </template>
                 <template v-else-if="saleLinePriceInfo(product).type === 'tag'">
-                  <span class="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30">Etiqueta</span>
+                  <span class="text-xs px-2 py-0.5 rounded-lg bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700/50 font-medium text-sky-700 dark:text-sky-300">Etiqueta</span>
                 </template>
                 <template v-else-if="saleLinePriceInfo(product).type === 'special'">
-                  <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30">Especial</span>
+                  <span class="text-xs px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 font-medium text-amber-700 dark:text-amber-300">Especial</span>
                 </template>
               </div>
               <p class="text-sm text-stone-500 mt-1">Precio base: ${{ formatPrice(saleLinePriceInfo(product).base ?? product.price) }}</p>

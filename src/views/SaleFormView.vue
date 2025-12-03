@@ -84,10 +84,10 @@
                   <p class="font-semibold text-base">{{ item.name }}</p>
                   <template v-if="selectedClient">
                     <template v-if="resolvePriceForClient(item, selectedClient).type === 'client'">
-                      <span class="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30">Cliente</span>
+                      <span class="text-xs px-2 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700/50 font-medium text-purple-700 dark:text-purple-300">Cliente</span>
                     </template>
                     <template v-else-if="resolvePriceForClient(item, selectedClient).type === 'tag'">
-                      <span class="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30">Etiqueta</span>
+                      <span class="text-xs px-2 py-0.5 rounded-lg bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700/50 font-medium text-sky-700 dark:text-sky-300">Etiqueta</span>
                     </template>
                   </template>
                 </div>

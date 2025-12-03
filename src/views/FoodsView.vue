@@ -78,16 +78,21 @@
               <p class="text-xl font-bold text-green-600 dark:text-green-400 mt-1">${{ formatPrice(item.basePrice || item.price) }}</p>
             </div>
 
-            <!-- Show special prices per area (tags) -->
-            <div v-if="item.pricesByTags && Object.keys(item.pricesByTags).length > 0">
+            <!-- Show special prices per area (tags and clients) -->
+            <div v-if="(item.pricesByTags && Object.keys(item.pricesByTags).length > 0) || (item.specialClientPrices && Object.keys(item.specialClientPrices).length > 0)">
               <p class="text-xs font-medium text-stone-500 dark:text-stone-400 mb-2">Precios especiales:</p>
               <div class="flex gap-2 overflow-x-auto pb-1">
-                <template v-for="entry in Object.entries(item.pricesByTags)" :key="`price-${item.id}-${entry[0]}`">
+                <!-- Tag-specific prices -->
+                <template v-for="entry in Object.entries(item.pricesByTags || {})" :key="`price-${item.id}-${entry[0]}`">
                   <div class="inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-xs whitespace-nowrap flex-shrink-0">
                     <span class="font-medium text-stone-700 dark:text-stone-300">{{ tagName(entry[0]) }}</span>
                     <span class="text-green-600 dark:text-green-400 font-semibold">${{ formatPrice(entry[1]) }}</span>
                   </div>
                 </template>
+                <!-- Client-specific prices count -->
+                <div v-if="item.specialClientPrices && Object.keys(item.specialClientPrices).length > 0" class="inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700/50 text-xs whitespace-nowrap flex-shrink-0">
+                  <span class="font-medium text-purple-700 dark:text-purple-300">{{ Object.keys(item.specialClientPrices).length }} cliente{{ Object.keys(item.specialClientPrices).length !== 1 ? 's' : '' }}</span>
+                </div>
               </div>
             </div>
 

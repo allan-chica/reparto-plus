@@ -170,7 +170,7 @@
             <div v-for="product in sortedSelectedProducts" :key="product.id"
               class="p-3 flex justify-between items-center border-b rounded-md">
               <!-- Product info -->
-                <div class="flex flex-col">
+              <div class="flex flex-col">
                 <div class="flex items-center gap-3">
                   <p class="font-semibold text-lg">{{ product.name }}</p>
                   <template v-if="getSelectedLineInfo(product).type === 'client'">

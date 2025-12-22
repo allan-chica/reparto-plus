@@ -66,13 +66,20 @@
               </div>
             </div>
 
-            <div class="flex items-center gap-2">
-              <Button size="icon" variant="outline" @click="router.push(`/clients/edit/${item.id}`)">
-                <Pencil class="size-4" />
-              </Button>
-              <Button size="icon" variant="destructive" @click="dialogDelete(item)">
-                <Trash2 class="size-4" />
-              </Button>
+            <div class="flex items-center gap-4">
+              <div>
+                <span :class="['text-sm font-medium', (item.debt && Number(item.debt) > 0) ? 'text-red-600' : 'text-stone-600']">{{ formatCurrency(item.debt || 0) }}</span>
+                <div class="text-xs text-stone-400">Deuda</div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <Button size="icon" variant="outline" @click="router.push(`/clients/edit/${item.id}`)">
+                  <Pencil class="size-4" />
+                </Button>
+                <Button size="icon" variant="destructive" @click="dialogDelete(item)">
+                  <Trash2 class="size-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </template>
@@ -210,6 +217,16 @@ const tagsById = computed(() => {
 const tagName = (id) => {
   if (id === undefined || id === null) return ''
   return tagsById.value.get(String(id)) || ''
+}
+
+const formatCurrency = (value) => {
+  try {
+    const v = Number(value) || 0
+    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 }).format(v)
+  // eslint-disable-next-line no-unused-vars
+  } catch (e) {
+    return `$${Number(value || 0).toFixed(2)}`
+  }
 }
 
 const selectAllTags = () => { selectedTags.value = [] }

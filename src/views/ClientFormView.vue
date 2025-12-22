@@ -17,22 +17,30 @@
         <Label for="phone">Telefono</Label>
         <Input id="phone" v-model="form.phone" type="number" />
       </div>
-          <div class="flex flex-col gap-2">
-            <Label>Etiqueta</Label>
-            <div class="overflow-x-auto w-full" style="scrollbar-width: none;">
-              <div class="flex gap-2 items-center py-2 px-1 whitespace-nowrap">
-                <button type="button" @click="form.tagId = null" :class="['inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm transition', !form.tagId ? 'bg-primary text-background' : 'bg-secondary/10 text-foreground']">Sin etiqueta</button>
-                <template v-for="tag in tags" :key="tag.id">
-                  <button type="button" @click="selectTag(tag)" :class="['inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm transition select-none', form.tagId === tag.id ? 'bg-primary text-background' : 'bg-secondary/10 text-foreground']">{{ tag.name }}</button>
-                </template>
-                <!-- Add tag button -->
-                <button type="button" @click="tagDialogOpen = true" class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm border border-dashed border-stone-600 text-primary">
-                  <Plus class="size-4" />
-                  Agregar
-                </button>
-              </div>
-            </div>
+      <div class="flex flex-col gap-2">
+        <Label for="debt">Deuda</Label>
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-stone-600">$</span>
+          <Input id="debt" v-model="form.debt" type="number" step="0.01" class="w-36" placeholder="0.00" />
+        </div>
+        <p class="text-xs text-stone-500">Ingresa la deuda actual del cliente (ej. 120.50)</p>
+      </div>
+      <div class="flex flex-col gap-2">
+        <Label>Etiqueta</Label>
+        <div class="overflow-x-auto w-full" style="scrollbar-width: none;">
+          <div class="flex gap-2 items-center py-2 px-1 whitespace-nowrap">
+            <button type="button" @click="form.tagId = null" :class="['inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm transition', !form.tagId ? 'bg-primary text-background' : 'bg-secondary/10 text-foreground']">Sin etiqueta</button>
+            <template v-for="tag in tags" :key="tag.id">
+              <button type="button" @click="selectTag(tag)" :class="['inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm transition select-none', form.tagId === tag.id ? 'bg-primary text-background' : 'bg-secondary/10 text-foreground']">{{ tag.name }}</button>
+            </template>
+            <!-- Add tag button -->
+            <button type="button" @click="tagDialogOpen = true" class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm border border-dashed border-stone-600 text-primary">
+              <Plus class="size-4" />
+              Agregar
+            </button>
           </div>
+        </div>
+      </div>
       <div class="flex gap-3 items-center">
         <!-- <Switch class="my-3" id="has-discount" v-model:model-value="hasDiscount" />
         <Label for="has-discount">Tiene descuento</Label>
@@ -103,7 +111,7 @@ const selectTag = (tag) => {
 const router = useRouter()
 const route = useRoute()
 
-const form = ref({ name: '', phone: '', discount: 0 })
+const form = ref({ name: '', phone: '', discount: 0, debt: 0 })
 
 const isEditing = computed(() => route.name === 'Editar cliente')
 const editingId = computed(() => route.params.id)
@@ -118,10 +126,13 @@ const saveClient = () => {
     return
   }
 
+  // Ensure numeric fields are numbers
+  const payload = { ...form.value, debt: Number(form.value.debt) || 0, discount: Number(form.value.discount) || 0 }
+
   if (isEditing.value) {
-    store.updateClient({ id: editingId.value, ...form.value })
+    store.updateClient({ id: editingId.value, ...payload })
   } else {
-    store.addClient({ ...form.value })
+    store.addClient(payload)
   }
 
   form.value.name = ''
@@ -143,5 +154,6 @@ onMounted(async () => {
   }
   tagsStore.loadTags()
 })
+
 
 </script>

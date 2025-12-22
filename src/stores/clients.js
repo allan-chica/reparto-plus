@@ -8,18 +8,23 @@ export const useClientsStore = defineStore('clients', {
 
   actions: {
     async loadClients() {
-      this.clients = await db.getAll('clients')
+      const all = await db.getAll('clients')
+      // normalize debt to a number and ensure default 0
+      this.clients = (all || []).map(c => ({ ...c, debt: typeof c.debt === 'number' ? c.debt : Number(c.debt) || 0 }))
     },
 
     async addClient(client) {
-      const id = await db.add('clients', client)
-      this.clients.push({ ...client, id })
+      // ensure debt is a number and default to 0
+      const normalized = { ...client, debt: typeof client.debt === 'number' ? client.debt : Number(client.debt) || 0 }
+      const id = await db.add('clients', normalized)
+      this.clients.push({ ...normalized, id })
     },
 
     async updateClient(updatedClient) {
-      await db.put('clients', updatedClient)
-      const index = this.clients.findIndex(c => c.id === updatedClient.id)
-      if (index !== -1) this.clients[index] = updatedClient
+      const normalized = { ...updatedClient, debt: typeof updatedClient.debt === 'number' ? updatedClient.debt : Number(updatedClient.debt) || 0 }
+      await db.put('clients', normalized)
+      const index = this.clients.findIndex(c => c.id === normalized.id)
+      if (index !== -1) this.clients[index] = normalized
     },
 
     async deleteClient(id) {

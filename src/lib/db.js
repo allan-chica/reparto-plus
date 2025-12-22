@@ -64,3 +64,30 @@ async function ensureClientDiscounts() {
 
 // Run at startup
 ensureClientDiscounts()
+
+// Post-open migration that adds `debt: 0` to clients that miss it
+async function ensureClientDebts() {
+  const migrated = localStorage.getItem('migrated-debt-v1')
+  if (migrated) return
+
+  try {
+    const clients = await db.getAll('clients')
+    if (!clients || clients.length === 0) return
+
+    const missing = clients.filter(c => !('debt' in c))
+    if (missing.length === 0) return
+
+    for (const client of missing) {
+      client.debt = 0
+      await db.put('clients', client)
+    }
+
+    console.log(`IndexedDB migration: added debt to ${missing.length} clients.`)
+    localStorage.setItem('migrated-debt-v1', 'true')
+  } catch (err) {
+    console.error('Error running clients -> debt migration', err)
+  }
+}
+
+// Run at startup
+ensureClientDebts()

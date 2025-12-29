@@ -3,16 +3,19 @@
 
     <div class="flex flex-col h-full transition-all duration-300 ease-in-out"
       :class="{ 'scale-95 brightness-75': viewSummary }">
+
+      <!-- Header -->
       <div class="flex gap-4 items-center mb-4">
         <Button type="submit" size="icon" variant="outline" @click="router.back()">
           <ChevronLeft />
         </Button>
         <h1 class="text-2xl font-bold">{{ isEditing ? 'Editar' : 'Nueva' }} venta</h1>
       </div>
+
+      <!-- Client select dialog -->
       <Dialog v-model:open="clientDialogOpen">
-          <DialogTrigger as-child>
-          <div
-            class="flex justify-between items-center gap-2 mb-4 cursor-pointer w-full border rounded-lg p-3 font-semibold"
+        <DialogTrigger as-child>
+          <div class="flex justify-between items-center gap-2 mb-4 cursor-pointer w-full border rounded-lg p-3 font-semibold"
             :class="{ 'text-red-400 border-dashed': !selectedClient }">
             <div class="flex items-center gap-3">
               <div class="flex flex-col text-left">
@@ -64,12 +67,15 @@
           </div>
         </DialogContent>
       </Dialog>
+
+      <!-- Product search bar -->
       <div class="relative mb-4 items-center">
         <Input v-model="productSearchQuery" placeholder="Buscar..." class="pl-9" id="search" />
         <span class="absolute start-0 inset-y-0 flex items-center justify-center px-2">
           <Search class="size-5 text-muted-foreground" />
         </span>
       </div>
+
       <!-- Products list -->
       <div class="flex-1 min-h-0">
         <AlphabetScroll :items="filteredProducts" label-key="name" id-key="id" scroll-area-class="h-full"
@@ -206,6 +212,21 @@
                 </Button>
               </div>
             </div>
+
+            <!-- Debt line as an item -->
+            <div v-if="selectedClient" class="p-3 flex justify-between items-center border-b rounded-md">
+              <div class="flex flex-col">
+                <p class="font-semibold">Deuda actual</p>
+                <p class="text-xs text-muted-foreground">Deuda del cliente seleccionada</p>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="text-green-600 dark:text-green-500 font-semibold">${{ formatPrice(clientDebt) }}</div>
+                <Button :variant="includeDebt ? 'outline' : ''" @click="includeDebt = !includeDebt">
+                  {{ includeDebt ? 'No incluir' : 'Incluir' }}
+                </Button>
+              </div>
+            </div>
+
           </ScrollArea>
         </div>
 
@@ -220,14 +241,28 @@
               <p>Descuento ({{ discount }}%)</p>
               <p class="text-red-700 dark:text-red-300">-${{ formatPrice(totalPrice - totalPriceWithDiscount) }}</p>
             </div>
+            <div v-if="includeDebt" class="flex justify-end gap-3 items-center">
+              <p>Deuda</p>
+              <p class="text-red-700 dark:text-red-300">+${{ formatPrice(clientDebt) }}</p>
+            </div>
             <div class="flex justify-end gap-3 items-center mb-4 text-lg font-semibold">
               <p>Total</p>
-              <p>${{ formatPrice(totalPriceWithDiscount) }}</p>
+              <p>${{ formatPrice(finalTotal) }}</p>
             </div>
           </div>
-          <div v-else class="flex justify-end gap-3 items-center mb-4 text-lg font-semibold">
-            <p>Total</p>
-            <p>${{ formatPrice(totalPriceWithDiscount) }}</p>
+          <div v-else>
+            <div v-if="includeDebt" class="flex justify-end gap-3 items-center">
+              <p>Subtotal</p>
+              <p>${{ formatPrice(totalPrice) }}</p>
+            </div>
+            <div v-if="includeDebt" class="flex justify-end gap-3 items-center">
+              <p>Deuda</p>
+              <p class="text-red-700 dark:text-red-300">+${{ formatPrice(clientDebt) }}</p>
+            </div>
+            <div class="flex justify-end gap-3 items-center mb-4 text-lg font-semibold">
+              <p>Total</p>
+              <p>${{ formatPrice(finalTotal) }}</p>
+            </div>
           </div>
           <Button class="w-full mt-2" size="lg" @click="confirmSale">Confirmar venta</Button>
 
@@ -308,6 +343,8 @@ const clientTagName = (client) => {
 }
 const clientSearchQuery = ref('')
 const selectedClient = ref(null)
+const clientDebt = ref(0)
+const includeDebt = ref(true)
 const filteredClients = computed(() => {
   const query = clientSearchQuery.value.toLowerCase().trim()
   const filtered = !query
@@ -390,6 +427,12 @@ const totalPrice = computed(() => {
 
 const totalPriceWithDiscount = computed(() => totalPrice.value - (totalPrice.value * (discount.value / 100)))
 
+const finalTotal = computed(() => {
+  const productsTotal = hasDiscount.value ? totalPriceWithDiscount.value : totalPrice.value
+  const debtAdd = includeDebt.value ? (Number(clientDebt.value) || 0) : 0
+  return productsTotal + debtAdd
+})
+
 const completedDialogOpen = ref(false)
 
 const discount = computed(() => selectedClient.value?.discount)
@@ -403,6 +446,17 @@ const selectClient = client => {
   selectedClient.value = client
   clientDialogOpen.value = false
 }
+
+// update debt when selected client changes
+watch(selectedClient, (newClient) => {
+  if (!newClient) {
+    clientDebt.value = 0
+    includeDebt.value = true
+    return
+  }
+  clientDebt.value = Number(newClient.debt) || 0
+  includeDebt.value = true
+})
 
 // Reprice selectedProducts according to the provided client (or null)
 const repriceSelectedProducts = (client) => {
@@ -521,15 +575,17 @@ const formatPrice = price => {
 const confirmSale = async () => {
   const client = JSON.parse(JSON.stringify(selectedClient.value))
   const products = JSON.parse(JSON.stringify(selectedProducts.value))
-  const total = hasDiscount.value ? totalPriceWithDiscount.value : totalPrice.value
+  const debtInfo = { amount: Number(clientDebt.value) || 0, included: Boolean(includeDebt.value) }
+  const total = finalTotal.value
   const date = Date.now()
 
-  lastSale.value = { client, products, total, date }
+  lastSale.value = { client, products, total, date, debt: debtInfo }
   const id = await saleStore.addSale({
     client,
     products,
     total,
     date,
+    debt: debtInfo,
     isPaid: false,
     payment: {
       type: null,

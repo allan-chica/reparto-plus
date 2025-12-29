@@ -48,6 +48,12 @@
                   ${{ formatPrice(product.price * product.quantity) }}
                 </td>
               </tr>
+              <tr v-if="debtIncluded && debtAmount > 0">
+                <td class="border px-1.5 py-1 text-center whitespace-nowrap">1</td>
+                <td class="border px-1.5 py-1">Deuda</td>
+                <td class="border px-1.5 py-1 text-right whitespace-nowrap"></td>
+                <td class="border px-1.5 py-1 text-right whitespace-nowrap font-bold">${{ formatPrice(debtAmount) }}</td>
+              </tr>
             </tbody>
           </table>
           <div v-if="hasDiscount" class="mt-3">
@@ -55,7 +61,7 @@
               <p class="ml-auto text-right text-base">Subtotal: ${{ formatPrice(totalPrice) }}</p>
             </div>
             <div class="flex justify-between items-center">
-              <p class="ml-auto text-right text-base">Descuento: -${{ formatPrice(totalPrice - sale.total) }}</p>
+              <p class="ml-auto text-right text-base">Descuento: -${{ formatPrice(totalPrice - saleProductsTotalFromSale) }}</p>
             </div>
             <div class="flex justify-between items-center">
               <p class="text-xs">Documento NO válido como factura</p>
@@ -109,6 +115,12 @@
                   ${{ formatPrice(product.price * product.quantity) }}
                 </td>
               </tr>
+              <tr v-if="debtIncluded && debtAmount > 0">
+                <td class="border px-1.5 py-1 text-center whitespace-nowrap">1</td>
+                <td class="border px-1.5 py-1">Deuda</td>
+                <td class="border px-1.5 py-1 text-right whitespace-nowrap"></td>
+                <td class="border px-1.5 py-1 text-right whitespace-nowrap font-bold">${{ formatPrice(debtAmount) }}</td>
+              </tr>
             </tbody>
           </table>
           <div v-if="hasDiscount" class="mt-3">
@@ -116,7 +128,7 @@
               <p class="ml-auto text-right text-base">Subtotal: ${{ formatPrice(totalPrice) }}</p>
             </div>
             <div class="flex justify-between items-center">
-              <p class="ml-auto text-right text-base">Descuento: -${{ formatPrice(totalPrice - sale.total) }}</p>
+              <p class="ml-auto text-right text-base">Descuento: -${{ formatPrice(totalPrice - saleProductsTotalFromSale) }}</p>
             </div>
             <div class="flex justify-between items-center">
               <p class="text-xs">Documento NO válido como factura</p>
@@ -187,6 +199,14 @@ const discount = computed(() => props.sale.client.discount)
 const hasDiscount = computed(() => {
   if (!discount.value) return
   return discount.value > 0
+})
+
+const debtAmount = computed(() => Number(props.sale.debt?.amount) || 0)
+const debtIncluded = computed(() => Boolean(props.sale.debt?.included))
+
+// Derive the products total stored in the sale (sale.total minus included debt)
+const saleProductsTotalFromSale = computed(() => {
+  return Number(props.sale.total || 0) - (debtIncluded.value ? debtAmount.value : 0)
 })
 
 const formatPrice = price => new Intl.NumberFormat('es-AR').format(price)

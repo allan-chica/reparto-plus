@@ -83,6 +83,16 @@
               </p>
             </div>
           </div>
+
+          <!-- Debt row (if present on sale) -->
+          <div v-if="sale.debt && Number(sale.debt.amount) > 0 && sale.debt.included" class="p-3 flex justify-between items-center border-b rounded-md">
+            <div class="flex flex-col">
+              <p class="font-semibold text-lg">Deuda anterior</p>
+            </div>
+            <div>
+              <p class="text-green-600 dark:text-green-500 font-semibold text-lg text-right">${{ formatPrice(sale.debt.amount) }}</p>
+            </div>
+          </div>
         </ScrollArea>
       </div>
     </div>
@@ -99,7 +109,7 @@
         </div>
         <div class="flex justify-between items-center gap-2">
           <p>Descuento ({{ discount }}%):</p>
-          <p class="text-red-700 dark:text-red-300">-${{ formatPrice(totalPrice - sale.total) }}</p>
+          <p class="text-red-700 dark:text-red-300">-${{ formatPrice(totalPrice - saleProductsTotalFromSale) }}</p>
         </div>
         <div class="flex justify-between items-center text-lg font-semibold gap-2">
           <p>Total:</p>
@@ -320,6 +330,15 @@ const discount = ref(0)
 const hasDiscount = computed(() => {
   if (!discount.value) return
   return discount.value > 0
+})
+
+// Debt info from sale
+const debtAmount = computed(() => Number(sale.value?.debt?.amount) || 0)
+const debtIncluded = computed(() => Boolean(sale.value?.debt?.included))
+
+// Derive the products total stored in the sale (sale.total minus included debt)
+const saleProductsTotalFromSale = computed(() => {
+  return Number(sale.value?.total || 0) - (debtIncluded.value ? debtAmount.value : 0)
 })
 
 // Sync inputs in mixed mode

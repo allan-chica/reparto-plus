@@ -30,9 +30,18 @@
             }">
             <div class="flex-1 flex gap-3 items-center">
               <StatusIcon :sale="sale" />
-              <div>
-                <p class="text-lg font-semibold">{{ sale.client.name }}</p>
+              <div class="flex-1">
+                <p class="text-lg font-semibold truncate">{{ sale.client.name }}</p>
                 <p class="text-muted-foreground">{{ getSaleTime(sale) }}</p>
+
+                <div class="mt-2 text-sm text-muted-foreground flex items-center gap-3">
+                  <div>Pagado: ${{ formatPrice(paidAmount(sale)) }}</div>
+                  <div>Falta: ${{ formatPrice(remainingAmount(sale)) }}</div>
+                </div>
+
+                <div class="w-full bg-stone-100 dark:bg-stone-900 h-1 rounded mt-2 overflow-hidden">
+                  <div class="bg-green-500 h-1" :style="{ width: paidPercent(sale) + '%' }"></div>
+                </div>
               </div>
             </div>
 
@@ -93,8 +102,37 @@ const formatPrice = price => {
   return new Intl.NumberFormat('es-AR').format(price)
 }
 
+const paidAmount = sale => {
+  const payments = sale?.payments || []
+  return payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+}
+
+const remainingAmount = sale => {
+  const total = Number(sale.total || 0)
+  const paid = paidAmount(sale)
+  return Math.max(total - paid, 0)
+}
+
+const paidPercent = sale => {
+  const total = Number(sale.total || 0)
+  if (!total) return 0
+  const paid = paidAmount(sale)
+  return Math.min(100, Math.round((paid / total) * 100))
+}
+
 const isPaidStatus = (sale, status) => {
-  return sale.isPaid && sale.payment.type === status
+  // Prefer payments array
+  const payments = sale.payments
+  if (payments && payments.length > 0) {
+    const total = Number(sale.total || 0)
+    const paid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+    if (paid < total) return false
+    const types = new Set(payments.map(p => p.type))
+    if (types.size === 1) return Array.from(types)[0] === status
+    return status === 'mix'
+  }
+
+  return false
 }
 
 onMounted(() => {

@@ -53,16 +53,17 @@ const saleStore = useSalesStore()
 const weeklySales = computed(() => saleStore.sales.filter(sale => sale.date && isThisWeek(sale.date)))
 
 const weeklyTotal = computed(() => {
-  return weeklySales.value.reduce((sum, sale) => {
-    if (!sale.isPaid) return sum
-    return sum + sale.total
-  }, 0)
+  // Sum of all sale totals for the week
+  return weeklySales.value.reduce((sum, sale) => sum + (Number(sale.total || 0)), 0)
 })
 
 const weeklyNotPaid = computed(() => {
+  // Sum unpaid portion per sale (total - paid, floored at 0)
   return weeklySales.value.reduce((sum, sale) => {
-    if (sale.isPaid) return sum
-    return sum + sale.total
+    const payments = sale.payments || []
+    const paid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+    const unpaid = Math.max(Number(sale.total || 0) - paid, 0)
+    return sum + unpaid
   }, 0)
 })
 
@@ -72,17 +73,12 @@ const paymentSplit = computed(() => {
   let cash = 0
   let debt = 0
 
+  // Sum actual payment amounts per type (includes partial payments)
   weeklySales.value.forEach(sale => {
-    if (!sale.isPaid) return
-
-    if (sale.payment.type == 'cash') {
-      cash += sale.total
-    } else if ((sale.payment.type == 'debt')) {
-      debt += sale.total
-    } else if ((sale.payment.type == 'mix')) {
-      cash += sale.payment.details.cash || 0
-      debt += sale.payment.details.debt || 0
-    }
+    const payments = sale.payments || []
+    if (!payments.length) return
+    cash += payments.filter(p => p.type === 'cash').reduce((s,p)=>s+Number(p.amount||0),0)
+    debt += payments.filter(p => p.type === 'debt').reduce((s,p)=>s+Number(p.amount||0),0)
   })
 
   return { cash, debt }

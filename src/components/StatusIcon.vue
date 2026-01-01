@@ -23,6 +23,18 @@ const props = defineProps({
 })
 
 const isPaidStatus = status => {
-  return props.sale.isPaid && props.sale.payment.type === status
+  if (!props.sale || !props.sale.payments || (props.sale.payments.length === 0)) return false
+
+  const total = Number(props.sale.total || 0)
+  const paid = props.sale.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  if (paid < total) return false
+
+  // determine payment type
+  const types = new Set((props.sale.payments || []).map(p => p.type))
+  if (types.size === 1) {
+    return Array.from(types)[0] === status
+  }
+  // multiple types => mix
+  return status === 'mix'
 }
 </script>

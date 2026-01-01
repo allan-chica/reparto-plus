@@ -21,7 +21,7 @@
     </div>
 
     <!-- Header -->
-    <div>
+    <div class="border-b mb-5">
       <!-- Info -->
       <div class="flex gap-3 items-center justify-between mb-3">
         <!-- Status and name -->
@@ -32,30 +32,50 @@
         <!-- Date and time -->
         <p class="text-muted-foreground">{{ date }}</p>
       </div>
-
-      <!-- Payment management -->
-      <div @click="viewPaymentDialog = true"
-        class="flex justify-between items-center gap-2 mb-4 cursor-pointer w-full border rounded-lg p-4 font-semibold"
-        :class="{ 'text-red-400 border-dashed': !sale.isPaid }">
-        <div class="flex flex-col">
-          <div class="flex items-center gap-2">
-            <StatusIcon class="w-fit" :sale="sale" />
-            <span>{{ paymentText }}</span>
-          </div>
-          <div v-if="sale.payment?.type == 'mix'" class="mt-2">
-            <p class="text-sm font-normal text-muted-foreground">${{ formatPrice(sale.payment.details.cash) }} en
-              efectivo</p>
-            <p class="text-sm font-normal text-muted-foreground">${{ formatPrice(sale.payment.details.debt) }} por
-              transferencia</p>
-          </div>
-        </div>
-        <ChevronRight />
-      </div>
     </div>
 
-    <!-- List -->
+
+    <!-- Payments list -->
+    <div class="mb-4">
+      <div class="flex justify-between items-center mb-2">
+        <div class="flex items-center gap-2">
+          <h3 class="text-lg font-semibold">Pagos</h3>
+          <StatusIcon class="w-fit" :sale="sale" />
+        </div>
+        <Button size="sm" @click="addPaymentDialog = true">Agregar pago</Button>
+      </div>
+        <div class="space-y-2">
+          <div class="mt-2">
+            <div class="flex items-center justify-between text-sm text-muted-foreground">
+              <div>Pagado: ${{ formatPrice(totalPaid) }}</div>
+              <div>Falta: ${{ formatPrice(remainingTotal) }}</div>
+            </div>
+            <div class="w-full bg-stone-100 dark:bg-stone-900 h-2 rounded mt-2 overflow-hidden">
+              <div class="bg-green-500 h-2" :style="{ width: percentPaid + '%' }"></div>
+            </div>
+          </div>
+          <div v-if="!sale.payments || sale.payments.length === 0" class="text-sm text-muted-foreground">No hay pagos registrados.</div>
+          <div v-for="(p, idx) in sale.payments" :key="idx" class="flex justify-between items-center p-2 border rounded-md">
+            <div class="flex items-center gap-3" style="flex:1;" @click="openEditPayment(idx)">
+              <div>
+                <p class="font-medium">{{ p.type === 'cash' ? 'Efectivo' : 'Transferencia' }}</p>
+                <p class="text-xs text-muted-foreground">{{ new Date(p.date).toLocaleString() }}</p>
+                <p v-if="paymentRemainingAfter(idx) !== null" class="text-xs text-muted-foreground">Saldo después: ${{ formatPrice(paymentRemainingAfter(idx)) }}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="font-semibold">${{ formatPrice(p.amount) }}</div>
+              <Button size="icon" variant="ghost" @click.stop="requestDeletePayment(idx)">
+                <Trash2 class="size-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <!-- Products list -->
     <div class="flex-1 min-h-0 flex flex-col">
-      <h3 class="text-lg font-semibold">Productos:</h3>
+      <h3 class="text-lg font-semibold">Productos</h3>
       <div class="flex-1 min-h-0">
         <ScrollArea class="h-full">
           <div v-for="product in sale.products" :key="product.id"
@@ -122,71 +142,39 @@
       </div>
     </div>
 
-    <AlertDialog v-model:open="viewPaymentDialog">
-      <AlertDialogContent class="max-w-lg">
-        <AlertDialogHeader>
-          <AlertDialogTitle class="text-lg font-semibold">Estado de pago</AlertDialogTitle>
-        </AlertDialogHeader>
+    <!-- Add Payment Dialog -->
+    <Dialog v-model:open="addPaymentDialog">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Agregar pago</DialogTitle>
+        </DialogHeader>
 
-        <div>
-          <!-- Paid switch -->
-          <div class="flex items-center gap-3 justify-center">
-            <Switch v-model="isPaid" />
-            <span>Pagado</span>
-          </div>
-
-          <!-- Tabs for payment type -->
-          <div v-if="isPaid" class="w-full mt-6">
-            <Tabs v-model="paymentType" class="w-full">
-              <TabsList class="w-full">
-                <TabsTrigger value="cash">
-                  <Banknote /> Efectivo
-                </TabsTrigger>
-                <TabsTrigger value="debt">
-                  <Wallet /> Transferencia
-                </TabsTrigger>
-                <TabsTrigger value="mix">
-                  <Split /> Mixto
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="cash" class="flex justify-center items-center gap-3 mt-4">
-                <StatusIcon :sale="{ isPaid: true, payment: { type: 'cash' } }" />
-                <p>El pago fue realizado completamente en
-                  efectivo.
-                </p>
-              </TabsContent>
-
-              <TabsContent value="debt" class="flex justify-center items-center gap-3 mt-4">
-                <StatusIcon :sale="{ isPaid: true, payment: { type: 'debt' } }" />
-                <p>El pago fue realizado completamente por
-                  transferencia.</p>
-              </TabsContent>
-
-              <TabsContent value="mix" class="flex gap-3 w-full">
-                <div class="flex-1 flex gap-3 mt-4">
-                  <div class="flex-1 flex flex-col gap-2">
-                    <Label class="text-sm font-medium" for="mixedCash">Efectivo</Label>
-                    <Input id="mixedCash" type="number" v-model="mixedCash" placeholder="Monto"
-                      class="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                  </div>
-                  <div class="flex-1 flex flex-col gap-2">
-                    <Label class="text-sm font-medium" for="mixedDebt">Transferencia</Label>
-                    <Input id="mixedDebt" type="number" v-model="mixedDebt" placeholder="Monto"
-                      class="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                  </div>
+        <div class="mt-2 space-y-3">
+          <div class="flex flex-col gap-2">
+            <Label for="payAmount">Monto</Label>
+                <div class="flex items-center gap-2">
+                  <Input id="payAmount" v-model="newPaymentAmount" type="number" placeholder="0.00" class="flex-1" />
+                  <Button size="sm" variant="outline" @click="newPaymentAmount = remainingAmount">Completar</Button>
                 </div>
-              </TabsContent>
-            </Tabs>
           </div>
+
+              <div class="flex flex-col gap-2">
+                <Label for="payType">Tipo</Label>
+                <Tabs v-model="newPaymentType">
+                  <TabsList class="w-full">
+                    <TabsTrigger value="cash">Efectivo</TabsTrigger>
+                    <TabsTrigger value="debt">Transferencia</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
         </div>
 
-        <div class="flex mt-4 gap-3">
-          <Button class="flex-1" size="lg" variant="outline" @click="viewPaymentDialog = false">Cancelar</Button>
-          <Button class="flex-1" size="lg" @click="savePayment">Guardar</Button>
-        </div>
-      </AlertDialogContent>
-    </AlertDialog>
+        <DialogFooter>
+          <Button variant="ghost" @click="addPaymentDialog = false">Cancelar</Button>
+          <Button @click="addPayment">Agregar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <AlertDialog v-model:open="viewDeleteDialog">
 
@@ -212,23 +200,35 @@
 
     </AlertDialog>
 
+    <!-- Delete single payment confirmation -->
+    <AlertDialog v-model:open="deletePaymentDialog">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Eliminar pago</AlertDialogTitle>
+          <AlertDialogDescription>¿Estás seguro que querés eliminar este pago? Esta acción no se puede deshacer.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="deletePaymentDialog = false">Cancelar</AlertDialogCancel>
+          <AlertDialogAction @click="confirmDeletePayment">Eliminar</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
     <ReceiptDialog :sale="sale" :is-open="isReceiptOpen" @update:isOpen="isReceiptOpen = false" />
   </div>
 </template>
 
 <script setup>
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { ChevronLeft, Pencil, Trash2, Printer, ChevronRight } from 'lucide-vue-next'
+import { ChevronLeft, Pencil, Trash2, Printer } from 'lucide-vue-next'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSalesStore } from '@/stores/sales'
 import { useProductsStore } from '@/stores/products'
 import StatusIcon from '@/components/StatusIcon.vue'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import TabsContent from '@/components/ui/tabs/TabsContent.vue'
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Wallet, Banknote, Split } from 'lucide-vue-next'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import ReceiptDialog from '@/components/ReceiptDialog.vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import AlertDialogFooter from '@/components/ui/alert-dialog/AlertDialogFooter.vue'
@@ -285,8 +285,13 @@ const saleLinePriceInfo = (line) => {
 }
 const isReceiptOpen = ref(false)
 
-const viewPaymentDialog = ref(false)
 const viewDeleteDialog = ref(false)
+const addPaymentDialog = ref(false)
+const newPaymentAmount = ref('')
+const newPaymentType = ref('cash')
+const editingPaymentIndex = ref(null)
+const deletePaymentIndex = ref(null)
+const deletePaymentDialog = ref(false)
 
 // Local state for tabs
 const isPaid = ref(false)
@@ -304,19 +309,37 @@ const date = computed(() => {
   })
 })
 
-const paymentText = computed(() => {
-  if (sale.value.isPaid) {
-    if (sale.value.payment.type == 'debt') {
-      return 'Pagado con transferencia'
-    } else if (sale.value.payment.type == 'cash') {
-      return 'Pagado con efectivo'
-    } else {
-      return 'Pagado con efectivo y transferencia'
-    }
-  } else {
-    return 'Sin pagar'
-  }
+const paymentTotals = computed(() => {
+  const payments = sale.value.payments || []
+  const cash = payments.filter(p => p.type === 'cash').reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  const debt = payments.filter(p => p.type === 'debt').reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  return { cash, debt }
 })
+
+// Totals and progress for payments
+const totalPaid = computed(() => {
+  return (sale.value?.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
+})
+
+const remainingTotal = computed(() => {
+  return Math.max(Number(sale.value?.total || 0) - totalPaid.value, 0)
+})
+
+const percentPaid = computed(() => {
+  const total = Number(sale.value?.total || 0)
+  if (!total) return 0
+  return Math.min(100, Math.round((totalPaid.value / total) * 100))
+})
+
+const paymentRemainingAfter = idx => {
+  if (!sale.value || !Array.isArray(sale.value.payments)) return null
+  const total = Number(sale.value.total || 0)
+  let sum = 0
+  for (let i = 0; i <= idx && i < sale.value.payments.length; i++) {
+    sum += Number(sale.value.payments[i].amount) || 0
+  }
+  return Math.max(total - sum, 0)
+}
 
 // Discount
 const totalPrice = computed(() => {
@@ -341,6 +364,13 @@ const saleProductsTotalFromSale = computed(() => {
   return Number(sale.value?.total || 0) - (debtIncluded.value ? debtAmount.value : 0)
 })
 
+// Remaining amount to be paid for this sale (total - sum(payments))
+const remainingAmount = computed(() => {
+  const total = Number(sale.value?.total || 0)
+  const paid = (sale.value?.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  return Math.max(total - paid, 0)
+})
+
 // Sync inputs in mixed mode
 watch(mixedCash, newVal => {
   if (paymentType.value == 'mix') {
@@ -357,24 +387,6 @@ watch(mixedDebt, newVal => {
 })
 
 // Methods
-const savePayment = async () => {
-  sale.value.isPaid = isPaid.value
-
-  if (!isPaid.value) { // Not paid
-    sale.value.payment = { type: null, details: null }
-  } else {
-    const details = paymentType.value === 'mix'
-      ? { cash: Number(mixedCash.value), debt: Number(mixedDebt.value) }
-      : null
-    sale.value.payment = { type: paymentType.value, details }
-  }
-
-  await saleStore.updateSale(JSON.parse(JSON.stringify(sale.value)))
-
-  // Close dialog
-  viewPaymentDialog.value = false
-}
-
 const deletePayment = async () => {
   await saleStore.deleteSale(sale.value.id)
   router.push('/sales')
@@ -390,19 +402,90 @@ onMounted(async () => {
 
   const dbSale = await saleStore.getSaleById(Number(saleId.value))
 
-  if (dbSale) {
+    if (dbSale) {
     Object.assign(sale.value, dbSale)
 
+      // Ensure payments array exists (migrate legacy single payment -> payments)
+      if (!Array.isArray(sale.value.payments)) {
+        sale.value.payments = []
+        // If there is a legacy sale.payment with details, try to populate payments
+        if (sale.value.payment && sale.value.payment.type) {
+          if (sale.value.payment.type === 'mix' && sale.value.payment.details) {
+            const d = sale.value.payment.details
+            if (d.cash) sale.value.payments.push({ amount: Number(d.cash) || 0, type: 'cash', date: Date.now() })
+            if (d.debt) sale.value.payments.push({ amount: Number(d.debt) || 0, type: 'debt', date: Date.now() })
+          } else if (sale.value.payment.type === 'cash' || sale.value.payment.type === 'debt') {
+            // Unknown amount - assume full total
+            sale.value.payments.push({ amount: Number(sale.value.total) || 0, type: sale.value.payment.type, date: Date.now() })
+          }
+        }
+      }
+
     isPaid.value = sale.value.isPaid
-    if (sale.value.payment?.type) paymentType.value = sale.value.payment.type
-    if (sale.value.payment?.details) {
-      mixedCash.value = sale.value.payment.details.cash || ''
-      mixedDebt.value = sale.value.payment.details.debt || ''
-    }
+    // derive mixed inputs from payments
+    mixedCash.value = paymentTotals.value.cash || ''
+    mixedDebt.value = paymentTotals.value.debt || ''
     discount.value = sale.value.client.discount
 
   } else {
     router.push('/sales')
   }
 })
+
+const addPayment = async () => {
+  const amt = Number(newPaymentAmount.value)
+  if (!sale.value || !amt || amt <= 0) return
+
+  sale.value.payments = sale.value.payments || []
+  if (editingPaymentIndex.value !== null && sale.value.payments[editingPaymentIndex.value]) {
+    // update existing
+    sale.value.payments[editingPaymentIndex.value].amount = amt
+    sale.value.payments[editingPaymentIndex.value].type = newPaymentType.value
+    sale.value.payments[editingPaymentIndex.value].date = Date.now()
+  } else {
+    sale.value.payments.push({ amount: amt, type: newPaymentType.value, date: Date.now() })
+  }
+
+  // Recompute summary payment fields
+  const totalPaid = sale.value.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  sale.value.isPaid = totalPaid >= Number(sale.value.total || 0)
+
+  await saleStore.updateSale(JSON.parse(JSON.stringify(sale.value)))
+  newPaymentAmount.value = ''
+  newPaymentType.value = 'cash'
+  editingPaymentIndex.value = null
+  addPaymentDialog.value = false
+}
+
+const openEditPayment = (idx) => {
+  if (!sale.value || !sale.value.payments || !sale.value.payments[idx]) return
+  const p = sale.value.payments[idx]
+  editingPaymentIndex.value = idx
+  newPaymentAmount.value = p.amount
+  newPaymentType.value = p.type || 'cash'
+  addPaymentDialog.value = true
+}
+
+const requestDeletePayment = (idx) => {
+  deletePaymentIndex.value = idx
+  deletePaymentDialog.value = true
+}
+
+const confirmDeletePayment = async () => {
+  const idx = deletePaymentIndex.value
+  if (idx === null || !sale.value || !sale.value.payments || !sale.value.payments[idx]) return
+  sale.value.payments.splice(idx, 1)
+
+  // recompute payment summary
+  const totalPaid = sale.value.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  sale.value.isPaid = totalPaid >= Number(sale.value.total || 0)
+
+  if (sale.value.payments.length === 0) {
+    // no legacy `payment` field - everything is kept in `payments` array
+  }
+
+  await saleStore.updateSale(JSON.parse(JSON.stringify(sale.value)))
+  deletePaymentIndex.value = null
+  deletePaymentDialog.value = false
+}
 </script>

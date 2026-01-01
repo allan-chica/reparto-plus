@@ -8,7 +8,23 @@ export const useSalesStore = defineStore('sales', {
 
   actions: {
     async loadSales() {
-      this.sales = await db.getAll('sales')
+      const all = await db.getAll('sales')
+      this.sales = (all || []).map(s => {
+        const out = { ...s }
+        if (!Array.isArray(out.payments)) {
+          out.payments = []
+          if (out.payment && out.payment.type) {
+            if (out.payment.type === 'mix' && out.payment.details) {
+              const d = out.payment.details
+              if (d.cash) out.payments.push({ amount: Number(d.cash) || 0, type: 'cash', date: Date.now() })
+              if (d.debt) out.payments.push({ amount: Number(d.debt) || 0, type: 'debt', date: Date.now() })
+            } else if (out.payment.type === 'cash' || out.payment.type === 'debt') {
+              out.payments.push({ amount: Number(out.total) || 0, type: out.payment.type, date: Date.now() })
+            }
+          }
+        }
+        return out
+      })
     },
 
     async addSale(sale) {
@@ -32,12 +48,27 @@ export const useSalesStore = defineStore('sales', {
       return await db.get('sales', id)
     },
 
-    async markSalePaid(id, paymentType, details = null) {
+    async markSalePaid(id, paymentsOrType, details = null) {
       const sale = await this.getSaleById(id)
       if (!sale) throw new Error('Sale not found')
 
-      sale.isPaid = true
-      sale.payment = { type: paymentType, details }
+      // Support passing an array of payments or legacy payment type + details
+      sale.payments = sale.payments || []
+      if (Array.isArray(paymentsOrType)) {
+        sale.payments = paymentsOrType
+      } else if (typeof paymentsOrType === 'string') {
+        const paymentType = paymentsOrType
+        if (paymentType === 'mix' && details) {
+          if (details.cash) sale.payments.push({ amount: details.cash, type: 'cash', date: Date.now() })
+          if (details.debt) sale.payments.push({ amount: details.debt, type: 'debt', date: Date.now() })
+        } else {
+          // assume full amount paid by single type
+          sale.payments.push({ amount: sale.total || 0, type: paymentType, date: Date.now() })
+        }
+      }
+
+      const paid = sale.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+      sale.isPaid = paid >= Number(sale.total || 0)
       await this.updateSale(sale)
     },
 
@@ -46,7 +77,7 @@ export const useSalesStore = defineStore('sales', {
       if (!sale) throw new Error('Sale not found')
 
       sale.isPaid = false
-      sale.payment = { type: null, details: null }
+      sale.payments = []
       await this.updateSale(sale)
     },
   },

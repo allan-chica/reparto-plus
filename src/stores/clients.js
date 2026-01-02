@@ -24,7 +24,12 @@ export const useClientsStore = defineStore('clients', {
       const normalized = { ...updatedClient, debt: typeof updatedClient.debt === 'number' ? updatedClient.debt : Number(updatedClient.debt) || 0 }
       await db.put('clients', normalized)
       const index = this.clients.findIndex(c => c.id === normalized.id)
-      if (index !== -1) this.clients[index] = normalized
+      if (index !== -1) {
+        this.clients[index] = normalized
+      } else {
+        // ensure the in-memory list reflects the DB (upsert)
+        this.clients.push(normalized)
+      }
     },
 
     async deleteClient(id) {

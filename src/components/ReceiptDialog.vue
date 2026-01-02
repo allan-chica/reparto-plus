@@ -49,7 +49,7 @@
                 </td>
               </tr>
               <tr v-if="debtIncluded && debtAmount > 0">
-                <td class="border px-1.5 py-1 text-center whitespace-nowrap">1</td>
+                <td class="border px-1.5 py-1 text-center whitespace-nowrap"></td>
                 <td class="border px-1.5 py-1">Deuda</td>
                 <td class="border px-1.5 py-1 text-right whitespace-nowrap"></td>
                 <td class="border px-1.5 py-1 text-right whitespace-nowrap font-bold">${{ formatPrice(debtAmount) }}</td>
@@ -116,7 +116,7 @@
                 </td>
               </tr>
               <tr v-if="debtIncluded && debtAmount > 0">
-                <td class="border px-1.5 py-1 text-center whitespace-nowrap">1</td>
+                <td class="border px-1.5 py-1 text-center whitespace-nowrap"></td>
                 <td class="border px-1.5 py-1">Deuda</td>
                 <td class="border px-1.5 py-1 text-right whitespace-nowrap"></td>
                 <td class="border px-1.5 py-1 text-right whitespace-nowrap font-bold">${{ formatPrice(debtAmount) }}</td>

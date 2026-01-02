@@ -22,19 +22,38 @@ const props = defineProps({
   }
 })
 
+const allocatePayments = (payments = [], saleTotal = 0) => {
+  const allocated = []
+  let remaining = Number(saleTotal || 0)
+  const sorted = [...payments].sort((a, b) => (a.date || 0) - (b.date || 0))
+
+  let paidSale = 0
+  let paidDebt = 0
+
+  sorted.forEach(p => {
+    const amount = Number(p.amount || 0)
+    const toSale = Math.max(0, Math.min(remaining, amount))
+    const toDebt = Math.max(0, amount - toSale)
+    remaining = Math.max(0, remaining - toSale)
+    paidSale += toSale
+    paidDebt += toDebt
+    allocated.push({ ...p, toSale, toDebt })
+  })
+
+  return { allocated, paidSale, paidDebt }
+}
+
 const isPaidStatus = status => {
-  if (!props.sale || !props.sale.payments || (props.sale.payments.length === 0)) return false
+  if (!props.sale) return false
+  const payments = props.sale.payments || []
+  if (!payments.length) return false
 
-  const total = Number(props.sale.total || 0)
-  const paid = props.sale.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
-  if (paid < total) return false
+  const productsTotal = Number(props.sale.total || 0) - (props.sale.debt && props.sale.debt.included ? Number(props.sale.debt.amount || 0) : 0)
+  const { allocated, paidSale } = allocatePayments(payments, productsTotal)
+  if (paidSale < productsTotal) return false
 
-  // determine payment type
-  const types = new Set((props.sale.payments || []).map(p => p.type))
-  if (types.size === 1) {
-    return Array.from(types)[0] === status
-  }
-  // multiple types => mix
+  const types = new Set(allocated.filter(a => a.toSale > 0).map(a => a.type))
+  if (types.size === 1) return Array.from(types)[0] === status
   return status === 'mix'
 }
 </script>

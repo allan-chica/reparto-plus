@@ -57,12 +57,34 @@ const weeklyTotal = computed(() => {
   return weeklySales.value.reduce((sum, sale) => sum + (Number(sale.total || 0)), 0)
 })
 
+const allocatePayments = (payments = [], saleTotal = 0) => {
+  const allocated = []
+  let remaining = Number(saleTotal || 0)
+  const sorted = [...payments].sort((a, b) => (a.date || 0) - (b.date || 0))
+
+  let paidSale = 0
+  let paidDebt = 0
+
+  sorted.forEach(p => {
+    const amount = Number(p.amount || 0)
+    const toSale = Math.max(0, Math.min(remaining, amount))
+    const toDebt = Math.max(0, amount - toSale)
+    remaining = Math.max(0, remaining - toSale)
+    paidSale += toSale
+    paidDebt += toDebt
+    allocated.push({ ...p, toSale, toDebt })
+  })
+
+  return { allocated, paidSale, paidDebt }
+}
+
 const weeklyNotPaid = computed(() => {
-  // Sum unpaid portion per sale (total - paid, floored at 0)
+  // Sum unpaid portion per sale using allocated payments (sale total - allocated-to-sale)
   return weeklySales.value.reduce((sum, sale) => {
     const payments = sale.payments || []
-    const paid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
-    const unpaid = Math.max(Number(sale.total || 0) - paid, 0)
+    const productsTotal = Number(sale.total || 0) - (sale.debt && sale.debt.included ? Number(sale.debt.amount || 0) : 0)
+    const { paidSale } = allocatePayments(payments, productsTotal)
+    const unpaid = Math.max(productsTotal - paidSale, 0)
     return sum + unpaid
   }, 0)
 })

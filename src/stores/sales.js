@@ -62,13 +62,15 @@ export const useSalesStore = defineStore('sales', {
           if (details.cash) sale.payments.push({ amount: details.cash, type: 'cash', date: Date.now() })
           if (details.debt) sale.payments.push({ amount: details.debt, type: 'debt', date: Date.now() })
         } else {
-          // assume full amount paid by single type
-          sale.payments.push({ amount: sale.total || 0, type: paymentType, date: Date.now() })
+          // assume full amount paid by single type (cover products total, excluding included debt)
+          const productsTotal = Number(sale.total || 0) - (sale.debt && sale.debt.included ? Number(sale.debt.amount || 0) : 0)
+          sale.payments.push({ amount: productsTotal || 0, type: paymentType, date: Date.now() })
         }
       }
 
       const paid = sale.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
-      sale.isPaid = paid >= Number(sale.total || 0)
+      const productsTotal = Number(sale.total || 0) - (sale.debt && sale.debt.included ? Number(sale.debt.amount || 0) : 0)
+      sale.isPaid = paid >= productsTotal
       await this.updateSale(sale)
     },
 

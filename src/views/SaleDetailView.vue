@@ -46,8 +46,8 @@
         <div class="space-y-2">
           <div class="mt-2">
             <div class="flex items-center justify-between text-sm text-muted-foreground">
-              <div>Pagado: ${{ formatPrice(totalPaid) }}</div>
-              <div>Falta: ${{ formatPrice(remainingTotal) }}</div>
+              <div>Venta pagada: ${{ formatPrice(paidTowardsSale) }} / ${{ formatPrice(saleProductsTotalFromSale) }}</div>
+              <div>Pagado a deuda: ${{ formatPrice(paidTowardsDebt) }}</div>
             </div>
             <div class="w-full bg-stone-100 dark:bg-stone-900 h-2 rounded mt-2 overflow-hidden">
               <div class="bg-green-500 h-2" :style="{ width: percentPaid + '%' }"></div>
@@ -59,6 +59,7 @@
               <div>
                 <p class="font-medium">{{ p.type === 'cash' ? 'Efectivo' : 'Transferencia' }}</p>
                 <p class="text-xs text-muted-foreground">{{ new Date(p.date).toLocaleString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) }}</p>
+                <p v-if="allocationAt(idx)" class="text-xs text-muted-foreground">Aplicado: venta ${{ formatPrice(allocationAt(idx).toSale) }}, deuda ${{ formatPrice(allocationAt(idx).toDebt) }}</p>
               </div>
             </div>
             <div class="flex items-center gap-3">
@@ -316,19 +317,36 @@ const paymentTotals = computed(() => {
   return { cash, debt }
 })
 
-// Totals and progress for payments
-const totalPaid = computed(() => {
-  return (sale.value?.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
+// Allocate payments chronologically: apply to sale first, remainder to client's debt
+const allocatePayments = (payments = [], saleTotal = 0) => {
+  const allocated = []
+  let remainingSale = Number(saleTotal || 0)
+  let paidSale = 0
+  let paidDebt = 0
+  for (const p of (payments || [])) {
+    const amt = Number(p.amount) || 0
+    const toSale = Math.min(Math.max(remainingSale, 0), amt)
+    const toDebt = Math.max(amt - toSale, 0)
+    remainingSale -= toSale
+    paidSale += toSale
+    paidDebt += toDebt
+    allocated.push({ ...p, toSale, toDebt })
+  }
+  return { allocated, paidSale, paidDebt }
+}
+
+const allocations = computed(() => {
+  const productsTotal = Number(saleProductsTotalFromSale.value || 0)
+  return allocatePayments(sale.value?.payments || [], productsTotal)
 })
 
-const remainingTotal = computed(() => {
-  return Math.max(Number(sale.value?.total || 0) - totalPaid.value, 0)
-})
-
+const paidTowardsSale = computed(() => allocations.value.paidSale)
+const paidTowardsDebt = computed(() => allocations.value.paidDebt)
+const remainingTotal = computed(() => Math.max(Number(saleProductsTotalFromSale.value || 0) - paidTowardsSale.value, 0))
 const percentPaid = computed(() => {
-  const total = Number(sale.value?.total || 0)
+  const total = Number(saleProductsTotalFromSale.value || 0)
   if (!total) return 0
-  return Math.min(100, Math.round((totalPaid.value / total) * 100))
+  return Math.min(100, Math.round((paidTowardsSale.value / total) * 100))
 })
 
 // Discount
@@ -354,11 +372,10 @@ const saleProductsTotalFromSale = computed(() => {
   return Number(sale.value?.total || 0) - (debtIncluded.value ? debtAmount.value : 0)
 })
 
-// Remaining amount to be paid for this sale (total - sum(payments))
+// Remaining amount to be paid for the sale's products (products total - allocated-to-sale)
 const remainingAmount = computed(() => {
-  const total = Number(sale.value?.total || 0)
-  const paid = (sale.value?.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
-  return Math.max(total - paid, 0)
+  const productsTotal = Number(saleProductsTotalFromSale.value || 0)
+  return Math.max(productsTotal - (paidTowardsSale.value || 0), 0)
 })
 
 // Sync inputs in mixed mode
@@ -428,8 +445,9 @@ const addPayment = async () => {
 
   sale.value.payments = sale.value.payments || []
 
-  // compute previous paid total to derive delta for client debt update
-  const prevPaid = (sale.value.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  // compute previous allocations to derive delta for client debt update
+  const productsTotal = Number(saleProductsTotalFromSale.value || 0)
+  const prevAlloc = allocatePayments(sale.value.payments || [], productsTotal)
 
   if (editingPaymentIndex.value !== null && sale.value.payments[editingPaymentIndex.value]) {
     // update existing
@@ -440,32 +458,36 @@ const addPayment = async () => {
     sale.value.payments.push({ amount: amt, type: newPaymentType.value, date: Date.now() })
   }
 
-  // Recompute summary payment fields
-  const newPaid = sale.value.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
-  const delta = newPaid - prevPaid
-  sale.value.isPaid = newPaid >= Number(sale.value.total || 0)
+  // Recompute allocations after mutation
+  const newAlloc = allocatePayments(sale.value.payments || [], productsTotal)
+
+  const prevTotalPaid = (prevAlloc.paidSale || 0) + (prevAlloc.paidDebt || 0)
+  const newTotalPaid = (newAlloc.paidSale || 0) + (newAlloc.paidDebt || 0)
+  const deltaTotalPaid = newTotalPaid - prevTotalPaid
+
+  // Update paid state based on products total
+  sale.value.isPaid = newAlloc.paidSale >= productsTotal
 
   await saleStore.updateSale(JSON.parse(JSON.stringify(sale.value)))
 
-  // Adjust client debt by subtracting the increase in paid amount (delta)
+  // All payments reduce the client's debt by the change in total paid
   try {
-      if (sale.value.client && sale.value.client.id && delta !== 0) {
-        // Fetch latest client record to avoid using stale snapshot from sale.client
-        let latestClient = null
-        try {
-          latestClient = await clientStore.getClientById(Number(sale.value.client.id))
-          // eslint-disable-next-line no-unused-vars
-        } catch (e) {
-          // fallback to sale.value.client
-          latestClient = sale.value.client
-        }
-        const currentDebt = Number(latestClient?.debt) || 0
-        const updatedClient = { ...latestClient, debt: currentDebt - delta }
-        await clientStore.updateClient(updatedClient)
-        // sync sale.client display
-        sale.value.client = updatedClient
+    if (sale.value.client && sale.value.client.id && deltaTotalPaid !== 0) {
+      let latestClient = null
+      try {
+        latestClient = await clientStore.getClientById(Number(sale.value.client.id))
+      } catch (e) {
+        latestClient = sale.value.client
       }
+      const currentDebt = Number(latestClient?.debt) || 0
+      const updatedClient = { ...latestClient, debt: currentDebt - deltaTotalPaid }
+      await clientStore.updateClient(updatedClient)
+      // sync sale.client display
+      sale.value.client = updatedClient
+    }
   } catch (err) {
+    // non-fatal
+    // eslint-disable-next-line no-console
     console.error('Failed to update client debt after adding/editing payment:', err)
   }
 
@@ -488,6 +510,15 @@ const fillPaymentAmount = () => {
   newPaymentAmount.value = remainingAmount.value
 }
 
+// Helper to safely access per-payment allocation
+const allocationAt = (idx) => {
+  try {
+    return allocations.value && allocations.value.allocated ? allocations.value.allocated[idx] : null
+  } catch (e) {
+    return null
+  }
+}
+
 const requestDeletePayment = (idx) => {
   deletePaymentIndex.value = idx
   deletePaymentDialog.value = true
@@ -496,34 +527,40 @@ const requestDeletePayment = (idx) => {
 const confirmDeletePayment = async () => {
   const idx = deletePaymentIndex.value
   if (idx === null || !sale.value || !sale.value.payments || !sale.value.payments[idx]) return
-  // compute previous paid amount
-  const prevPaid = (sale.value.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  // compute previous allocations
+  const productsTotal = Number(saleProductsTotalFromSale.value || 0)
+  const prevAlloc = allocatePayments(sale.value.payments || [], productsTotal)
 
-  // const removed = sale.value.payments.splice(idx, 1)
+  const removed = sale.value.payments.splice(idx, 1)
 
-  // recompute payment summary
-  const newPaid = sale.value.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
-  const delta = newPaid - prevPaid // negative when deleting
-  sale.value.isPaid = newPaid >= Number(sale.value.total || 0)
+  // recompute allocations after deletion
+  const newAlloc = allocatePayments(sale.value.payments || [], productsTotal)
+
+  const prevTotalPaid = (prevAlloc.paidSale || 0) + (prevAlloc.paidDebt || 0)
+  const newTotalPaid = (newAlloc.paidSale || 0) + (newAlloc.paidDebt || 0)
+  const deltaTotalPaid = newTotalPaid - prevTotalPaid // negative when deleting
+
+  const newPaidSale = newAlloc.paidSale
+  sale.value.isPaid = newPaidSale >= productsTotal
 
   await saleStore.updateSale(JSON.parse(JSON.stringify(sale.value)))
-  // update client debt: subtract delta (delta negative will increase debt)
+  // update client debt: subtract deltaTotalPaid (negative will increase debt)
   try {
-    if (sale.value.client && sale.value.client.id && delta !== 0) {
+    if (sale.value.client && sale.value.client.id && deltaTotalPaid !== 0) {
       // fetch latest client before modifying
       let latestClient = null
       try {
         latestClient = await clientStore.getClientById(Number(sale.value.client.id))
-      // eslint-disable-next-line no-unused-vars
       } catch (e) {
         latestClient = sale.value.client
       }
       const currentDebt = Number(latestClient?.debt) || 0
-      const updatedClient = { ...latestClient, debt: currentDebt - delta }
+      const updatedClient = { ...latestClient, debt: currentDebt - deltaTotalPaid }
       await clientStore.updateClient(updatedClient)
       sale.value.client = updatedClient
     }
   } catch (err) {
+    // eslint-disable-next-line no-console
     console.error('Failed to update client debt after deleting payment:', err)
   }
 

@@ -58,7 +58,7 @@
             <div class="flex items-center gap-3" style="flex:1;" @click="openEditPayment(idx)">
               <div>
                 <p class="font-medium">{{ p.type === 'cash' ? 'Efectivo' : 'Transferencia' }}</p>
-                <p class="text-xs text-muted-foreground">{{ new Date(p.date).toLocaleString() }}</p>
+                <p class="text-xs text-muted-foreground">{{ new Date(p.date).toLocaleString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) }}</p>
               </div>
             </div>
             <div class="flex items-center gap-3">

@@ -152,7 +152,7 @@
             <Label for="payAmount">Monto</Label>
                 <div class="flex items-center gap-2">
                   <Input id="payAmount" v-model="newPaymentAmount" type="number" placeholder="0.00" class="flex-1" />
-                  <Button size="sm" variant="outline" @click="newPaymentAmount = remainingAmount">Completar</Button>
+                  <Button size="sm" variant="outline" @click="fillPaymentAmount">Completar</Button>
                 </div>
           </div>
 
@@ -222,6 +222,7 @@ import { ChevronLeft, Trash2, Printer } from 'lucide-vue-next'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSalesStore } from '@/stores/sales'
+import { useClientsStore } from '@/stores/clients'
 import { useProductsStore } from '@/stores/products'
 import StatusIcon from '@/components/StatusIcon.vue'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -242,6 +243,7 @@ const saleStore = useSalesStore()
 const saleId = computed(() => route.params.id)
 const sale = ref({})
 const productStore = useProductsStore()
+const clientStore = useClientsStore()
 
 // helper: map current products by id
 const productsById = computed(() => {
@@ -425,6 +427,10 @@ const addPayment = async () => {
   if (!sale.value || !amt || amt <= 0) return
 
   sale.value.payments = sale.value.payments || []
+
+  // compute previous paid total to derive delta for client debt update
+  const prevPaid = (sale.value.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
+
   if (editingPaymentIndex.value !== null && sale.value.payments[editingPaymentIndex.value]) {
     // update existing
     sale.value.payments[editingPaymentIndex.value].amount = amt
@@ -435,10 +441,34 @@ const addPayment = async () => {
   }
 
   // Recompute summary payment fields
-  const totalPaid = sale.value.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
-  sale.value.isPaid = totalPaid >= Number(sale.value.total || 0)
+  const newPaid = sale.value.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  const delta = newPaid - prevPaid
+  sale.value.isPaid = newPaid >= Number(sale.value.total || 0)
 
   await saleStore.updateSale(JSON.parse(JSON.stringify(sale.value)))
+
+  // Adjust client debt by subtracting the increase in paid amount (delta)
+  try {
+      if (sale.value.client && sale.value.client.id && delta !== 0) {
+        // Fetch latest client record to avoid using stale snapshot from sale.client
+        let latestClient = null
+        try {
+          latestClient = await clientStore.getClientById(Number(sale.value.client.id))
+          // eslint-disable-next-line no-unused-vars
+        } catch (e) {
+          // fallback to sale.value.client
+          latestClient = sale.value.client
+        }
+        const currentDebt = Number(latestClient?.debt) || 0
+        const updatedClient = { ...latestClient, debt: currentDebt - delta }
+        await clientStore.updateClient(updatedClient)
+        // sync sale.client display
+        sale.value.client = updatedClient
+      }
+  } catch (err) {
+    console.error('Failed to update client debt after adding/editing payment:', err)
+  }
+
   newPaymentAmount.value = ''
   newPaymentType.value = 'cash'
   editingPaymentIndex.value = null
@@ -454,6 +484,10 @@ const openEditPayment = (idx) => {
   addPaymentDialog.value = true
 }
 
+const fillPaymentAmount = () => {
+  newPaymentAmount.value = remainingAmount.value
+}
+
 const requestDeletePayment = (idx) => {
   deletePaymentIndex.value = idx
   deletePaymentDialog.value = true
@@ -462,17 +496,37 @@ const requestDeletePayment = (idx) => {
 const confirmDeletePayment = async () => {
   const idx = deletePaymentIndex.value
   if (idx === null || !sale.value || !sale.value.payments || !sale.value.payments[idx]) return
-  sale.value.payments.splice(idx, 1)
+  // compute previous paid amount
+  const prevPaid = (sale.value.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
+
+  // const removed = sale.value.payments.splice(idx, 1)
 
   // recompute payment summary
-  const totalPaid = sale.value.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
-  sale.value.isPaid = totalPaid >= Number(sale.value.total || 0)
-
-  if (sale.value.payments.length === 0) {
-    // no legacy `payment` field - everything is kept in `payments` array
-  }
+  const newPaid = sale.value.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  const delta = newPaid - prevPaid // negative when deleting
+  sale.value.isPaid = newPaid >= Number(sale.value.total || 0)
 
   await saleStore.updateSale(JSON.parse(JSON.stringify(sale.value)))
+  // update client debt: subtract delta (delta negative will increase debt)
+  try {
+    if (sale.value.client && sale.value.client.id && delta !== 0) {
+      // fetch latest client before modifying
+      let latestClient = null
+      try {
+        latestClient = await clientStore.getClientById(Number(sale.value.client.id))
+      // eslint-disable-next-line no-unused-vars
+      } catch (e) {
+        latestClient = sale.value.client
+      }
+      const currentDebt = Number(latestClient?.debt) || 0
+      const updatedClient = { ...latestClient, debt: currentDebt - delta }
+      await clientStore.updateClient(updatedClient)
+      sale.value.client = updatedClient
+    }
+  } catch (err) {
+    console.error('Failed to update client debt after deleting payment:', err)
+  }
+
   deletePaymentIndex.value = null
   deletePaymentDialog.value = false
 }

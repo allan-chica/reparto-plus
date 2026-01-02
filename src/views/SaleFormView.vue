@@ -579,6 +579,8 @@ const confirmSale = async () => {
   const total = finalTotal.value
   const date = Date.now()
 
+  totalPrice.value
+
   lastSale.value = { client, products, total, date, debt: debtInfo }
   const id = await saleStore.addSale({
     client,
@@ -593,6 +595,19 @@ const confirmSale = async () => {
     }
   })
 
+  // After creating the sale, increment the client's debt by the products total
+  try {
+    if (selectedClient.value && selectedClient.value.id) {
+      const currentDebt = Number(selectedClient.value.debt) || 0
+      const add = Number(totalPrice.value) || 0
+      const updatedClient = { ...selectedClient.value, debt: currentDebt + add }
+      await clientStore.updateClient(updatedClient)
+      // Keep local selection in sync
+      selectedClient.value = updatedClient
+    }
+  } catch (err) {
+    console.error('Failed to update client debt after sale:', err)
+  }
   completedDialogOpen.value = true
   saleId.value = id
 }

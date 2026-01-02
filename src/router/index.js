@@ -9,7 +9,7 @@ import TagFormView from '@/views/TagFormView.vue'
 import SalesView from '@/views/SalesView.vue'
 import SaleFormView from '@/views/SaleFormView.vue'
 import SaleDetailView from '@/views/SaleDetailView.vue'
-import SaleEditView from '@/views/SaleEditView.vue'
+// import SaleEditView from '@/views/SaleEditView.vue'
 
 const routes = [
   {
@@ -93,12 +93,12 @@ const routes = [
     props: true
   },
 
-  {
-    path: '/sale/edit/:id',
-    component: SaleEditView,
-    name: 'Editar venta',
-    props: true
-  },
+  // {
+  //   path: '/sale/edit/:id',
+  //   component: SaleEditView,
+  //   name: 'Editar venta',
+  //   props: true
+  // },
 ]
 
 const router = createRouter({

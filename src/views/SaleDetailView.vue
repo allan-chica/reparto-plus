@@ -11,9 +11,9 @@
       </div>
 
       <div class="flex gap-2">
-        <Button size="icon" variant="outline" @click="router.push(`/sale/edit/${sale.id}`)">
+        <!-- <Button size="icon" variant="outline" @click="router.push(`/sale/edit/${sale.id}`)">
           <Pencil />
-        </Button>
+        </Button> -->
         <Button size="icon" variant="destructive" @click="viewDeleteDialog = true">
           <Trash2 />
         </Button>
@@ -218,7 +218,7 @@
 
 <script setup>
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, Pencil, Trash2, Printer } from 'lucide-vue-next'
+import { ChevronLeft, Trash2, Printer } from 'lucide-vue-next'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSalesStore } from '@/stores/sales'

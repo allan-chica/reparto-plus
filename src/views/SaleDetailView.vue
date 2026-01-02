@@ -34,7 +34,6 @@
       </div>
     </div>
 
-
     <!-- Payments list -->
     <div class="mb-4">
       <div class="flex justify-between items-center mb-2">
@@ -60,7 +59,6 @@
               <div>
                 <p class="font-medium">{{ p.type === 'cash' ? 'Efectivo' : 'Transferencia' }}</p>
                 <p class="text-xs text-muted-foreground">{{ new Date(p.date).toLocaleString() }}</p>
-                <p v-if="paymentRemainingAfter(idx) !== null" class="text-xs text-muted-foreground">Saldo después: ${{ formatPrice(paymentRemainingAfter(idx)) }}</p>
               </div>
             </div>
             <div class="flex items-center gap-3">
@@ -330,16 +328,6 @@ const percentPaid = computed(() => {
   if (!total) return 0
   return Math.min(100, Math.round((totalPaid.value / total) * 100))
 })
-
-const paymentRemainingAfter = idx => {
-  if (!sale.value || !Array.isArray(sale.value.payments)) return null
-  const total = Number(sale.value.total || 0)
-  let sum = 0
-  for (let i = 0; i <= idx && i < sale.value.payments.length; i++) {
-    sum += Number(sale.value.payments[i].amount) || 0
-  }
-  return Math.max(total - sum, 0)
-}
 
 // Discount
 const totalPrice = computed(() => {

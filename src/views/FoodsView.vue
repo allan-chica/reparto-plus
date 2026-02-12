@@ -3,7 +3,11 @@
 
     <div class="flex justify-between items-center mb-4">
       <h1 class="text-2xl font-bold">Productos</h1>
-      <Button type="submit" @click="router.push('/foods/new')">Nuevo Producto</Button>
+      <div class="flex items-center gap-2">
+        <input ref="fileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" @change="handleFileImport" />
+        <Button variant="ghost" @click="fileInput && fileInput.click()">Importar</Button>
+        <Button type="submit" @click="router.push('/foods/new')">Nuevo Producto</Button>
+      </div>
     </div>
 
     <div class="relative mb-4 items-center">
@@ -65,6 +69,8 @@
         </div>
       </div>
     </div>
+
+    <div v-if="importMessage" class="mb-4 text-sm text-stone-500">{{ importMessage }}</div>
 
     <div class="flex-1 min-h-0">
       <AlphabetScroll :items="filteredProducts" label-key="name" id-key="id" scrollAreaClass="h-full"
@@ -186,6 +192,7 @@
 
 <script setup>
 import { onMounted, computed, ref } from 'vue'
+import * as XLSX from 'xlsx'
 import { useProductsStore } from '@/stores/products'
 import { useClientsStore } from '@/stores/clients'
 import { useTagsStore } from '@/stores/tags'
@@ -261,6 +268,11 @@ const tags = computed(() => {
 
 const openDialog = ref(false)
 const productToDelete = ref(null)
+
+// Import helpers
+const fileInput = ref(null)
+const importing = ref(false)
+const importMessage = ref('')
 
 // Tag dialog state
 const tagDialogOpen = ref(false)
@@ -432,6 +444,91 @@ const confirmDeleteTag = async () => {
 
   tagToDelete.value = null
   deleteTagDialogOpen.value = false
+}
+
+// Helper to parse price strings like "4:2200; 2:1900" into {4: 2200, 2: 1900}
+const parsePriceMap = (str) => {
+  if (!str || typeof str !== 'string') return {}
+  const map = {}
+  const entries = str.split(';').map(s => s.trim()).filter(s => s)
+  for (const entry of entries) {
+    const [idStr, priceStr] = entry.split(':').map(s => s.trim())
+    if (idStr && priceStr) {
+      const id = isNaN(Number(idStr)) ? idStr : Number(idStr)
+      const price = Number(priceStr) || 0
+      map[id] = price
+    }
+  }
+  return map
+}
+
+const handleFileImport = async (ev) => {
+  const f = ev?.target?.files?.[0]
+  if (!f) return
+  importing.value = true
+  importMessage.value = ''
+
+  try {
+    const buffer = await f.arrayBuffer()
+    const wb = XLSX.read(buffer, { type: 'array' })
+    const first = wb.SheetNames[0]
+    const ws = wb.Sheets[first]
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: null })
+
+    let added = 0
+    let updated = 0
+    let failed = 0
+
+    for (const r of rows) {
+      try {
+        const norm = {}
+        for (const k of Object.keys(r || {})) {
+          norm[String(k).trim().toLowerCase()] = r[k]
+        }
+
+        const rawId = norm['id'] ?? norm['i.d'] ?? norm['identificador']
+        const id = (rawId !== null && rawId !== undefined && rawId !== '') ? (isNaN(Number(rawId)) ? rawId : Number(rawId)) : undefined
+        const name = (norm['name'] ?? norm['nombre'] ?? '') || ''
+        const basePrice = Number(norm['base price'] ?? norm['precio base'] ?? norm['precio'] ?? 0) || 0
+        const pricesByTagsStr = norm['prices by tags'] ?? norm['precios por etiquetas'] ?? ''
+        const specialClientPricesStr = norm['special client prices'] ?? norm['precios especiales clientes'] ?? ''
+
+        const pricesByTags = parsePriceMap(pricesByTagsStr)
+        const specialClientPrices = parsePriceMap(specialClientPricesStr)
+
+        const productObj = {
+          name: String(name).trim(),
+          basePrice,
+          pricesByTags,
+          specialClientPrices
+        }
+        if (id !== undefined) productObj.id = id
+
+        if (id !== undefined) {
+          await store.updateProduct(productObj)
+          updated++
+        } else {
+          await store.addProduct(productObj)
+          added++
+        }
+      } catch (errRow) {
+        console.error('Import row failed', errRow)
+        failed++
+      }
+    }
+
+    importMessage.value = `Import complete: ${added} added, ${updated} updated, ${failed} failed.`
+    // reload products
+    await store.loadProducts()
+  } catch (err) {
+    console.error('Import failed', err)
+    importMessage.value = 'Import failed. See console.'
+  } finally {
+    importing.value = false
+    // reset file input
+    // eslint-disable-next-line no-unused-vars, no-empty
+    try { if (fileInput.value) fileInput.value.value = '' } catch (e) {}
+  }
 }
 
 // Mounted

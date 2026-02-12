@@ -32,6 +32,8 @@
     "vue-chartjs": "^5.3.2",
     "vue-router": "^4.5.1",
     "vue-sonner": "^2.0.9"
+    ,
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",

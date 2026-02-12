@@ -264,7 +264,7 @@ const shareReceipt = async () => {
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({
         title: 'Recibo de Venta',
-        text: `Recibo de venta para ${props.sale.client?.name || 'Cliente'}`,
+        // text: `Recibo de venta para ${props.sale.client?.name || 'Cliente'}`,
         files: [file]
       })
     }
